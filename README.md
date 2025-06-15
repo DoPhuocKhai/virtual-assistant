@@ -39,6 +39,34 @@ Hệ thống trợ lý ảo thông minh được xây dựng riêng cho Công ty
 
 ## Cài Đặt
 
+### Yêu cầu hệ thống
+- Node.js (v14 trở lên)
+- MongoDB (cài đặt local hoặc sử dụng MongoDB Atlas)
+
+### Cài đặt MongoDB Local (khuyến nghị)
+
+1. **Windows:**
+   - Tải MongoDB Community Server từ: https://www.mongodb.com/try/download/community
+   - Cài đặt và khởi động MongoDB service
+
+2. **macOS:**
+   ```bash
+   brew tap mongodb/brew
+   brew install mongodb-community
+   brew services start mongodb/brew/mongodb-community
+   ```
+
+3. **Linux (Ubuntu):**
+   ```bash
+   wget -qO - https://www.mongodb.org/static/pgp/server-6.0.asc | sudo apt-key add -
+   echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/6.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list
+   sudo apt-get update
+   sudo apt-get install -y mongodb-org
+   sudo systemctl start mongod
+   ```
+
+### Cài đặt ứng dụng
+
 1. Clone repository:
 ```bash
 git clone <repository-url>
@@ -57,20 +85,36 @@ cp .env.example .env
 
 4. Cấu hình các biến môi trường trong file `.env`:
 ```
-MONGODB_URI=your_mongodb_uri
-JWT_SECRET=your_jwt_secret
-OPENAI_API_KEY=your_openai_api_key
+# Để trống để sử dụng MongoDB local, hoặc điền MongoDB Atlas URI
+MONGODB_URI=
+
+# JWT Secret key (tạo chuỗi ngẫu nhiên)
+JWT_SECRET=your_jwt_secret_key_here
+
+# Google Gemini API Key (thay thế OpenAI)
+GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
-5. Seed dữ liệu mẫu:
+5. Thiết lập cơ sở dữ liệu và tạo tài khoản admin:
 ```bash
-node scripts/seedData.js
+npm run setup
 ```
 
 6. Khởi động server:
 ```bash
 npm start
 ```
+
+Hoặc chạy ở chế độ development:
+```bash
+npm run dev
+```
+
+### Kiểm tra cài đặt
+- Truy cập: http://localhost:3000
+- Đăng nhập với tài khoản admin mặc định:
+  - Email: admin@company.com
+  - Password: admin123
 
 ## Tài Khoản Mẫu
 

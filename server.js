@@ -21,19 +21,19 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 // Get the Gemini-1.5-flash model
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-// MongoDB Atlas connection
-mongoose.connect(process.env.MONGODB_URI, {
+// Local MongoDB connection
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/virtual-assistant';
+
+mongoose.connect(MONGODB_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
-    serverApi: {
-        version: '1',
-        strict: true,
-        deprecationErrors: true,
-    }
 }).then(() => {
-    console.log('📦 Connected to MongoDB Atlas successfully!');
+    console.log('📦 Connected to local MongoDB successfully!');
+    console.log(`🗄️  Database: ${MONGODB_URI}`);
 }).catch((err) => {
-    console.error('❌ MongoDB Atlas connection error:', err);
+    console.error('❌ MongoDB connection error:', err);
+    console.log('💡 Make sure MongoDB is running locally on port 27017');
+    console.log('💡 You can start MongoDB with: mongod');
     process.exit(1);
 });
 
