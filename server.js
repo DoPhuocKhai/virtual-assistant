@@ -52,43 +52,56 @@ process.on('SIGINT', async () => {
 });
 
 // Import routes
-const assistantRoutes = require('./routes/assistant');
 const taskRoutes = require('./routes/tasks');
 const meetingRoutes = require('./routes/meetings');
 const documentRoutes = require('./routes/documents');
 const chatRoutes = require('./routes/chat');
 const authRoutes = require('./routes/auth');
 const assistantChatRoutes = require('./routes/assistantChat');
+const usersRoutes = require('./routes/users');
+const mailboxRoutes = require('./routes/mailbox');
+const calendarRoutes = require('./routes/calendar');
 
 // Import middleware
 const { auth } = require('./middleware/auth');
 
 // Use routes (auth routes don't need authentication middleware)
 app.use('/api/auth', authRoutes);
-app.use('/api/assistant', auth, assistantRoutes);
+app.use('/api/assistant', assistantChatRoutes);
 app.use('/api/tasks', auth, taskRoutes);
 app.use('/api/meetings', auth, meetingRoutes);
 app.use('/api/documents', auth, documentRoutes);
 app.use('/api/chat', auth, chatRoutes);
-app.use('/api/assistant-chat', auth, assistantChatRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/mailbox', auth, mailboxRoutes);
+app.use('/api/calendar', auth, calendarRoutes);
 
 // Company info endpoint
-app.get('/api/company/info', auth, (req, res) => {
-    res.json({
-        name: 'Công ty Khải Đỗ',
-        departments: ['IT', 'HR', 'Finance', 'Sales', 'Marketing', 'Operations'],
-        locations: {
-            headquarters: 'Hà Nội, Việt Nam',
-            branches: ['Hồ Chí Minh', 'Đà Nẵng']
-        },
-        establishedYear: 2023,
-        industry: 'Công nghệ thông tin',
-        contact: {
-            email: 'contact@khaido.com',
-            phone: '+84 xxx xxx xxx',
-            address: 'xxx, Hà Nội, Việt Nam'
+app.get('/api/company/info', auth, async (req, res) => {
+    try {
+        const CompanyData = require('./models/CompanyData');
+        const companyData = await CompanyData.getActiveCompanyData();
+        
+        if (!companyData) {
+            return res.status(404).json({ message: 'Không tìm thấy thông tin công ty' });
         }
-    });
+
+        res.json({
+            name: companyData.name,
+            tradingName: companyData.tradingName,
+            type: companyData.type,
+            founded: companyData.founded,
+            headquarters: companyData.headquarters,
+            industry: companyData.industry,
+            products: companyData.products,
+            employees: companyData.employees,
+            website: companyData.website,
+            description: companyData.description
+        });
+    } catch (error) {
+        console.error('Error fetching company info:', error);
+        res.status(500).json({ message: 'Lỗi khi tải thông tin công ty' });
+    }
 });
 
 // Health check endpoint

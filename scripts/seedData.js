@@ -1,15 +1,15 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
-const CompanyDocument = require('../models/CompanyDocument');
+const Document = require('../models/Document');
 const dotenv = require('dotenv');
 
 dotenv.config();
 
-// Sample users for Khai Do company
+// Sample users for VNG company
 const sampleUsers = [
     {
-        email: 'admin@khaido.com',
+        email: 'admin@vng.com.vn',
         password: 'admin123',
         name: 'Nguyễn Văn Admin',
         role: 'admin',
@@ -18,7 +18,7 @@ const sampleUsers = [
         permissions: ['view_company_docs', 'edit_company_docs', 'manage_users', 'view_reports', 'manage_meetings', 'manage_tasks']
     },
     {
-        email: 'manager.it@khaido.com',
+        email: 'manager.it@vng.com.vn',
         password: 'manager123',
         name: 'Trần Thị Manager IT',
         role: 'manager',
@@ -27,7 +27,7 @@ const sampleUsers = [
         permissions: ['view_company_docs', 'edit_company_docs', 'view_reports', 'manage_meetings', 'manage_tasks']
     },
     {
-        email: 'manager.hr@khaido.com',
+        email: 'manager.hr@vng.com.vn',
         password: 'manager123',
         name: 'Lê Văn Manager HR',
         role: 'manager',
@@ -36,7 +36,7 @@ const sampleUsers = [
         permissions: ['view_company_docs', 'edit_company_docs', 'view_reports', 'manage_meetings', 'manage_tasks']
     },
     {
-        email: 'employee.it@khaido.com',
+        email: 'employee.it@vng.com.vn',
         password: 'employee123',
         name: 'Phạm Thị Employee IT',
         role: 'employee',
@@ -45,7 +45,7 @@ const sampleUsers = [
         permissions: ['view_company_docs', 'manage_tasks']
     },
     {
-        email: 'employee.hr@khaido.com',
+        email: 'employee.hr@vng.com.vn',
         password: 'employee123',
         name: 'Hoàng Văn Employee HR',
         role: 'employee',
@@ -55,17 +55,34 @@ const sampleUsers = [
     }
 ];
 
-// Read company handbook
-const fs = require('fs');
-const path = require('path');
-
-const companyHandbook = fs.readFileSync(path.join(__dirname, '../documents/KhaiDo_Company_Handbook.docx'), 'utf8');
-
 // Sample company documents
 const sampleDocuments = [
     {
-        title: 'Sổ tay nhân viên Công ty Khải Đỗ',
-        content: companyHandbook,
+        title: 'Sổ tay nhân viên VNG Corporation',
+        content: `
+        SỔ TAY NHÂN VIÊN VNG CORPORATION
+
+        1. GIỚI THIỆU VỀ VNG
+        VNG Corporation là một trong những công ty công nghệ hàng đầu Việt Nam, được thành lập năm 2004. 
+        Chúng tôi chuyên phát triển các sản phẩm và dịch vụ công nghệ số, bao gồm game online, 
+        ứng dụng di động, dịch vụ thanh toán điện tử và các giải pháp công nghệ cho doanh nghiệp.
+
+        2. SỨ MỆNH VÀ TẦM NHÌN
+        - Sứ mệnh: Tạo ra những sản phẩm công nghệ chất lượng cao, mang lại giá trị cho người dùng
+        - Tầm nhìn: Trở thành công ty công nghệ hàng đầu khu vực Đông Nam Á
+
+        3. GIÁ TRỊ CỐT LÕI
+        - Đổi mới sáng tạo
+        - Chất lượng và hiệu quả
+        - Trách nhiệm xã hội
+        - Phát triển bền vững
+
+        4. QUYỀN LỢI NHÂN VIÊN
+        - Lương thưởng cạnh tranh
+        - Bảo hiểm y tế toàn diện
+        - Cơ hội đào tạo và phát triển
+        - Môi trường làm việc hiện đại
+        `,
         category: 'company_policy',
         department: 'All',
         accessLevel: 'public',
@@ -77,9 +94,9 @@ const sampleDocuments = [
         }
     },
     {
-        title: 'Quy chế làm việc công ty Khải Đỗ',
+        title: 'Quy chế làm việc VNG Corporation',
         content: `
-        QUY CHẾ LÀM VIỆC CÔNG TY KHẢI ĐỖ
+        QUY CHẾ LÀM VIỆC VNG CORPORATION
 
         1. THỜI GIAN LÀM VIỆC
         - Giờ làm việc: 8:00 - 17:00 (Thứ 2 - Thứ 6)
@@ -119,7 +136,7 @@ const sampleDocuments = [
     {
         title: 'Hướng dẫn sử dụng hệ thống IT',
         content: `
-        HƯỚNG DẪN SỬ DỤNG HỆ THỐNG IT - CÔNG TY KHẢI ĐỖ
+        HƯỚNG DẪN SỬ DỤNG HỆ THỐNG IT - VNG CORPORATION
 
         1. ĐĂNG NHẬP HỆ THỐNG
         - Sử dụng email công ty làm username
@@ -143,7 +160,7 @@ const sampleDocuments = [
 
         5. HỖ TRỢ KỸ THUẬT
         - Liên hệ IT Helpdesk: ext 101
-        - Email: it-support@khaido.com
+        - Email: it-support@vng.com.vn
         - Thời gian hỗ trợ: 8:00 - 17:00
         `,
         category: 'guidelines',
@@ -204,7 +221,7 @@ const sampleDocuments = [
     {
         title: 'Báo cáo tài chính Q1 2024',
         content: `
-        BÁO CÁO TÀI CHÍNH QUÝ 1/2024 - CÔNG TY KHẢI ĐỖ
+        BÁO CÁO TÀI CHÍNH QUÝ 1/2024 - VNG CORPORATION
 
         1. TỔNG QUAN
         - Doanh thu: 2.5 tỷ VNĐ (tăng 15% so với cùng kỳ)
@@ -242,7 +259,7 @@ const sampleDocuments = [
     {
         title: 'Kế hoạch bảo mật thông tin',
         content: `
-        KẾ HOẠCH BẢO MẬT THÔNG TIN - CÔNG TY KHẢI ĐỖ
+        KẾ HOẠCH BẢO MẬT THÔNG TIN - VNG CORPORATION
 
         1. MỤC TIÊU
         - Bảo vệ thông tin khách hàng và công ty
@@ -293,13 +310,17 @@ async function seedDatabase() {
 
         // Clear existing data
         await User.deleteMany({});
-        await CompanyDocument.deleteMany({});
+        await Document.deleteMany({});
         console.log('Cleared existing data');
 
         // Create users
         const createdUsers = [];
         for (const userData of sampleUsers) {
-            const user = new User(userData);
+            const hashedPassword = await bcrypt.hash(userData.password, 10);
+            const user = new User({
+                ...userData,
+                password: hashedPassword
+            });
             await user.save();
             createdUsers.push(user);
             console.log(`Created user: ${user.email}`);
@@ -307,16 +328,27 @@ async function seedDatabase() {
 
         // Create documents with proper author references
         for (const docData of sampleDocuments) {
-            // Assign random author from appropriate department or admin
+            // Assign appropriate author based on department and role
+            const admin = createdUsers.find(u => u.role === 'admin');
             let author;
+            
             if (docData.department === 'All') {
-                author = createdUsers.find(u => u.role === 'admin');
+                author = admin;
             } else {
-                author = createdUsers.find(u => u.department === docData.department && u.role !== 'employee') ||
-                        createdUsers.find(u => u.role === 'admin');
+                // Try to find a manager from the same department
+                const departmentManager = createdUsers.find(u => 
+                    u.department === docData.department && 
+                    u.role === 'manager'
+                );
+                // Fallback to admin if no department manager found
+                author = departmentManager || admin;
             }
 
-            const document = new CompanyDocument({
+            if (!author) {
+                throw new Error(`No suitable author found for document: ${docData.title}`);
+            }
+
+            const document = new Document({
                 ...docData,
                 author: author._id,
                 lastModifiedBy: author._id
@@ -328,11 +360,11 @@ async function seedDatabase() {
 
         console.log('\n=== SEED DATA COMPLETED ===');
         console.log('\nSample login credentials:');
-        console.log('Admin: admin@khaido.com / admin123');
-        console.log('IT Manager: manager.it@khaido.com / manager123');
-        console.log('HR Manager: manager.hr@khaido.com / manager123');
-        console.log('IT Employee: employee.it@khaido.com / employee123');
-        console.log('HR Employee: employee.hr@khaido.com / employee123');
+        console.log('Admin: admin@vng.com.vn / admin123');
+        console.log('IT Manager: manager.it@vng.com.vn / manager123');
+        console.log('HR Manager: manager.hr@vng.com.vn / manager123');
+        console.log('IT Employee: employee.it@vng.com.vn / employee123');
+        console.log('HR Employee: employee.hr@vng.com.vn / employee123');
 
         process.exit(0);
     } catch (error) {

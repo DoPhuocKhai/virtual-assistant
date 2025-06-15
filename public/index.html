@@ -19,12 +19,12 @@
             <form id="login" class="space-y-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
-                    <input type="email" id="loginEmail" required 
+                    <input type="email" id="loginEmail" name="email" required autocomplete="email"
                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Mật khẩu</label>
-                    <input type="password" id="loginPassword" required 
+                    <input type="password" id="loginPassword" name="password" required autocomplete="current-password"
                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                     <div class="mt-1 flex justify-between items-center">
                         <button type="button" id="forgotPasswordBtn" 
@@ -168,6 +168,10 @@
                             <button class="nav-btn w-full text-left px-4 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700" data-section="chat">
                                 💬 Trò chuyện
                             </button>
+                            <button class="nav-btn w-full text-left px-4 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 relative" data-section="mailbox">
+                                📧 Hộp thư
+                                <span id="mailboxBadge" class="absolute top-1 right-1 bg-red-500 text-white text-xs rounded-full px-1 min-w-[16px] h-4 flex items-center justify-center hidden">0</span>
+                            </button>
                             <button class="nav-btn w-full text-left px-4 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700" data-section="documents">
                                 📄 Tài liệu
                             </button>
@@ -176,6 +180,9 @@
                             </button>
                             <button class="nav-btn w-full text-left px-4 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700" data-section="tasks">
                                 ✅ Công việc
+                            </button>
+                            <button id="usersBtn" class="nav-btn w-full text-left px-4 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700" data-section="users">
+                                👥 Quản lý người dùng
                             </button>
                         </nav>
                     </div>
@@ -198,10 +205,55 @@
                 <div class="md:col-span-3">
                     <!-- Chat Section -->
                     <div id="chatSection" class="section-content bg-white dark:bg-gray-800 rounded-lg shadow">
+                        <!-- Company Question Labels -->
+                        <div class="border-b dark:border-gray-700 p-4">
+                            <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Câu hỏi về công ty:</h3>
+                            <div class="flex flex-wrap gap-2">
+                                <button class="company-question-btn px-3 py-1 text-xs bg-blue-100 text-blue-800 rounded-full hover:bg-blue-200 transition-colors" 
+                                        data-question="Công ty được thành lập khi nào?">
+                                    📅 Năm thành lập
+                                </button>
+                                <button class="company-question-btn px-3 py-1 text-xs bg-green-100 text-green-800 rounded-full hover:bg-green-200 transition-colors" 
+                                        data-question="Công ty hoạt động trong những lĩnh vực nào?">
+                                    🏭 Lĩnh vực hoạt động
+                                </button>
+                                <button class="company-question-btn px-3 py-1 text-xs bg-purple-100 text-purple-800 rounded-full hover:bg-purple-200 transition-colors" 
+                                        data-question="Các sản phẩm chính của công ty là gì?">
+                                    📦 Sản phẩm chính
+                                </button>
+                                <button class="company-question-btn px-3 py-1 text-xs bg-orange-100 text-orange-800 rounded-full hover:bg-orange-200 transition-colors" 
+                                        data-question="Trụ sở chính của công ty ở đâu?">
+                                    🏢 Trụ sở chính
+                                </button>
+                                <button class="company-question-btn px-3 py-1 text-xs bg-red-100 text-red-800 rounded-full hover:bg-red-200 transition-colors" 
+                                        data-question="Công ty có bao nhiêu nhân viên?">
+                                    👥 Số lượng nhân viên
+                                </button>
+                                <button class="company-question-btn px-3 py-1 text-xs bg-indigo-100 text-indigo-800 rounded-full hover:bg-indigo-200 transition-colors" 
+                                        data-question="Website chính thức của công ty là gì?">
+                                    🌐 Website công ty
+                                </button>
+                                <button class="company-question-btn px-3 py-1 text-xs bg-pink-100 text-pink-800 rounded-full hover:bg-pink-200 transition-colors" 
+                                        data-question="Lịch sử phát triển của công ty như thế nào?">
+                                    📚 Lịch sử công ty
+                                </button>
+                                <button class="company-question-btn px-3 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full hover:bg-yellow-200 transition-colors" 
+                                        data-question="Tên giao dịch đầy đủ của công ty là gì?">
+                                    ℹ️ Tên giao dịch
+                                </button>
+                            </div>
+                        </div>
+                        
                         <div class="h-[600px] flex flex-col">
                             <div id="chatMessages" class="flex-1 p-4 space-y-4 overflow-y-auto custom-scrollbar">
                                 <!-- Messages will be inserted here -->
                             </div>
+                            
+                            <!-- Message limit indicator -->
+                            <div id="messageLimitIndicator" class="px-4 py-2 bg-yellow-50 border-t border-yellow-200 text-sm text-yellow-800">
+                                <span id="messageCount">0</span>/10 tin nhắn đã sử dụng
+                            </div>
+                            
                             <div class="border-t dark:border-gray-700 p-4">
                                 <form id="chatForm" class="flex space-x-4">
                                     <div class="flex-1 flex items-center space-x-2">
@@ -215,11 +267,43 @@
                                             </svg>
                                         </button>
                                     </div>
-                                    <button type="submit" 
+                                    <button type="submit" id="sendButton"
                                             class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                                         Gửi
                                     </button>
                                 </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Mailbox Section -->
+                    <div id="mailboxSection" class="section-content hidden">
+                        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                            <div class="flex justify-between items-center mb-6">
+                                <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Hộp thư</h2>
+                                <div class="flex space-x-4">
+                                    <select id="messageFilter" class="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                        <option value="">Tất cả tin nhắn</option>
+                                        <option value="meeting">Cuộc họp</option>
+                                        <option value="task">Công việc</option>
+                                        <option value="document">Tài liệu</option>
+                                        <option value="notification">Thông báo</option>
+                                    </select>
+                                    <select id="labelFilter" class="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                        <option value="">Tất cả nhãn</option>
+                                        <option value="urgent">Khẩn cấp</option>
+                                        <option value="important">Quan trọng</option>
+                                        <option value="follow-up">Theo dõi</option>
+                                        <option value="work">Công việc</option>
+                                        <option value="personal">Cá nhân</option>
+                                    </select>
+                                    <button id="markAllRead" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                                        Đánh dấu tất cả đã đọc
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="messagesList" class="space-y-4 max-h-[600px] overflow-y-auto">
+                                <!-- Messages will be listed here -->
                             </div>
                         </div>
                     </div>
@@ -230,6 +314,19 @@
                             <div class="flex justify-between items-center mb-6">
                                 <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Tài liệu công ty</h2>
                                 <div class="flex space-x-4">
+                                    <select id="categoryFilter" class="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                        <option value="">Tất cả danh mục</option>
+                                        <option value="company_policy">Chính sách công ty</option>
+                                        <option value="procedures">Quy trình</option>
+                                        <option value="guidelines">Hướng dẫn</option>
+                                        <option value="reports">Báo cáo</option>
+                                        <option value="training">Đào tạo</option>
+                                        <option value="templates">Mẫu biểu</option>
+                                        <option value="contracts">Hợp đồng</option>
+                                        <option value="hr_documents">Tài liệu HR</option>
+                                        <option value="financial_documents">Tài liệu tài chính</option>
+                                        <option value="meeting_minutes">Biên bản họp</option>
+                                    </select>
                                     <input type="text" id="documentSearch" 
                                            class="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                            placeholder="Tìm kiếm tài liệu...">
@@ -273,9 +370,162 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Users Section -->
+                    <div id="usersSection" class="section-content hidden">
+                        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                            <div class="flex justify-between items-center mb-6">
+                                <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Quản lý người dùng</h2>
+                                <div class="flex items-center space-x-4">
+                                    <div id="accessDeniedMessage" class="text-red-600 text-sm hidden">
+                                        Chỉ nhân viên IT mới có quyền truy cập
+                                    </div>
+                                    <input type="text" id="userSearch" 
+                                           class="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                           placeholder="Tìm kiếm người dùng...">
+                                    <button id="refreshUsers" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                                        Làm mới
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="usersTableContainer" class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                    <thead class="bg-gray-50 dark:bg-gray-700">
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                Tên
+                                            </th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                Email
+                                            </th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                Phòng ban
+                                            </th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                Vị trí
+                                            </th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                Vai trò
+                                            </th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                Đăng nhập cuối
+                                            </th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                Ngày tạo
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="usersTableBody" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                        <!-- Users will be listed here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="usersLoadingMessage" class="text-center py-8 text-gray-500 dark:text-gray-400">
+                                Đang tải danh sách người dùng...
+                            </div>
+                            <div id="usersEmptyMessage" class="text-center py-8 text-gray-500 dark:text-gray-400 hidden">
+                                Không có người dùng nào
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </main>
+    </div>
+
+    <!-- Document Modal -->
+    <div id="documentModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
+        <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white dark:bg-gray-800">
+            <div class="mt-3">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white" id="modalTitle">Thêm tài liệu mới</h3>
+                    <button id="closeModal" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <form id="documentForm" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Tiêu đề</label>
+                        <input type="text" id="docTitle" required 
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Danh mục</label>
+                        <select id="docCategory" required 
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <option value="">Chọn danh mục</option>
+                            <option value="company_policy">Chính sách công ty</option>
+                            <option value="procedures">Quy trình</option>
+                            <option value="guidelines">Hướng dẫn</option>
+                            <option value="reports">Báo cáo</option>
+                            <option value="training">Đào tạo</option>
+                            <option value="templates">Mẫu biểu</option>
+                            <option value="contracts">Hợp đồng</option>
+                            <option value="hr_documents">Tài liệu HR</option>
+                            <option value="financial_documents">Tài liệu tài chính</option>
+                            <option value="meeting_minutes">Biên bản họp</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Phòng ban</label>
+                        <select id="docDepartment" required 
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <option value="">Chọn phòng ban</option>
+                            <option value="All">Tất cả phòng ban</option>
+                            <option value="IT">IT</option>
+                            <option value="HR">HR</option>
+                            <option value="Finance">Finance</option>
+                            <option value="Sales">Sales</option>
+                            <option value="Marketing">Marketing</option>
+                            <option value="Operations">Operations</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Mức độ truy cập</label>
+                        <select id="docAccessLevel" required 
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <option value="public">Công khai</option>
+                            <option value="department">Phòng ban</option>
+                            <option value="management">Quản lý</option>
+                            <option value="confidential">Bí mật</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nội dung</label>
+                        <textarea id="docContent" rows="8" required 
+                                  class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                  placeholder="Nhập nội dung tài liệu..."></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Từ khóa (phân cách bằng dấu phẩy)</label>
+                        <input type="text" id="docTags" 
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                               placeholder="ví dụ: quy trình, hướng dẫn, chính sách">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Trạng thái</label>
+                        <select id="docStatus" required 
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <option value="draft">Bản nháp</option>
+                            <option value="published">Đã xuất bản</option>
+                            <option value="archived">Lưu trữ</option>
+                        </select>
+                    </div>
+                    <div class="flex justify-end space-x-3 pt-4">
+                        <button type="button" id="cancelDocument" 
+                                class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                            Hủy
+                        </button>
+                        <button type="submit" 
+                                class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
+                            Lưu tài liệu
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 
     <script src="/js/app.js"></script>

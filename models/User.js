@@ -29,6 +29,16 @@ const UserSchema = new mongoose.Schema({
         required: true,
         trim: true
     },
+    role: {
+        type: String,
+        required: true,
+        enum: ['admin', 'manager', 'employee'],
+        default: 'employee'
+    },
+    permissions: [{
+        type: String,
+        enum: ['view_company_docs', 'edit_company_docs', 'manage_users', 'view_reports', 'manage_meetings', 'manage_tasks']
+    }],
     createdAt: {
         type: Date,
         default: Date.now
@@ -41,6 +51,27 @@ const UserSchema = new mongoose.Schema({
         default: 0
     },
     lastPasswordReset: {
+        type: Date
+    },
+    isActive: {
+        type: Boolean,
+        default: true
+    },
+    isSuspended: {
+        type: Boolean,
+        default: false
+    },
+    suspendedAt: {
+        type: Date
+    },
+    suspendedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    suspensionReason: {
+        type: String
+    },
+    suspensionEndDate: {
         type: Date
     }
 }, {
@@ -80,6 +111,47 @@ UserSchema.methods.hasExceededResetAttempts = function() {
         this.resetAttempts();
     }
     return false;
+};
+
+// Suspend user account
+UserSchema.methods.suspend = function(suspendedBy, reason, endDate) {
+    this.isSuspended = true;
+    this.suspendedAt = Date.now();
+    this.suspendedBy = suspendedBy;
+    this.suspensionReason = reason;
+    this.suspensionEndDate = endDate;
+    return this.save();
+};
+
+// Unsuspend user account
+UserSchema.methods.unsuspend = function() {
+    this.isSuspended = false;
+    this.suspendedAt = null;
+    this.suspendedBy = null;
+    this.suspensionReason = null;
+    this.suspensionEndDate = null;
+    return this.save();
+};
+
+// Check if user is currently suspended
+UserSchema.methods.isCurrentlySuspended = function() {
+    if (!this.isSuspended) return false;
+    
+    // Check if suspension has expired
+    if (this.suspensionEndDate && new Date() > this.suspensionEndDate) {
+        this.unsuspend();
+        return false;
+    }
+    
+    return true;
+};
+
+// Change password
+UserSchema.methods.changePassword = function(newPassword) {
+    this.password = newPassword;
+    this.lastPasswordReset = Date.now();
+    this.passwordResetAttempts = 0;
+    return this.save();
 };
 
 // Pre-save middleware to handle email case and trimming

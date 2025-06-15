@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý người dùng - Trợ lý ảo doanh nghiệp</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="css/styles.css" rel="stylesheet">
+    <style>
+        .user-card {
+            transition: transform 0.2s;
+        }
+        .user-card:hover {
+            transform: translateY(-2px);
+        }
+        .status-badge {
+            font-size: 0.75rem;
+        }
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .department-badge {
+            font-size: 0.7rem;
+        }
+        .action-buttons .btn {
+            margin: 2px;
+        }
+        .search-filters {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+        }
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .pagination-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-robot me-2"></i>
+                Trợ lý ảo doanh nghiệp
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/">Dashboard</a>
+                <a class="nav-link active" href="/user-management.html">Quản lý người dùng</a>
+                <a class="nav-link" href="#" onclick="logout()">Đăng xuất</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col">
+                <h2><i class="fas fa-users me-2"></i>Quản lý người dùng</h2>
+                <p class="text-muted">Quản lý tài khoản và quyền hạn người dùng trong hệ thống</p>
+            </div>
+        </div>
+
+        <!-- Statistics Cards -->
+        <div class="row mb-4" id="statsCards">
+            <!-- Stats will be loaded here -->
+        </div>
+
+        <!-- Search and Filters -->
+        <div class="search-filters">
+            <div class="row">
+                <div class="col-md-4">
+                    <label class="form-label">Tìm kiếm</label>
+                    <input type="text" class="form-control" id="searchInput" placeholder="Tên, email, chức vụ...">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Phòng ban</label>
+                    <select class="form-select" id="departmentFilter">
+                        <option value="">Tất cả</option>
+                        <option value="IT">IT</option>
+                        <option value="HR">HR</option>
+                        <option value="Finance">Finance</option>
+                        <option value="Sales">Sales</option>
+                        <option value="Marketing">Marketing</option>
+                        <option value="Operations">Operations</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Quyền hạn</label>
+                    <select class="form-select" id="roleFilter">
+                        <option value="">Tất cả</option>
+                        <option value="admin">Admin</option>
+                        <option value="manager">Manager</option>
+                        <option value="employee">Employee</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Trạng thái</label>
+                    <select class="form-select" id="statusFilter">
+                        <option value="">Tất cả</option>
+                        <option value="active">Hoạt động</option>
+                        <option value="inactive">Không hoạt động</option>
+                        <option value="suspended">Bị đình chỉ</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">&nbsp;</label>
+                    <button class="btn btn-primary d-block w-100" onclick="loadUsers()">
+                        <i class="fas fa-search me-1"></i>Tìm kiếm
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Users Table -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Danh sách người dùng</h5>
+                <div>
+                    <button class="btn btn-success btn-sm" onclick="showCreateUserModal()">
+                        <i class="fas fa-plus me-1"></i>Thêm người dùng
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Người dùng</th>
+                                <th>Phòng ban</th>
+                                <th>Quyền hạn</th>
+                                <th>Trạng thái</th>
+                                <th>Đăng nhập cuối</th>
+                                <th>Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <!-- Users will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Pagination -->
+                <div class="pagination-container" id="paginationContainer">
+                    <!-- Pagination will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Details Modal -->
+    <div class="modal fade" id="userDetailsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Chi tiết người dùng</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="userDetailsContent">
+                    <!-- User details will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div class="modal fade" id="changePasswordModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Đổi mật khẩu</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="changePasswordForm">
+                        <input type="hidden" id="changePasswordUserId">
+                        <div class="mb-3">
+                            <label class="form-label">Mật khẩu mới</label>
+                            <input type="password" class="form-control" id="newPassword" required minlength="6">
+                            <div class="form-text">Mật khẩu phải có ít nhất 6 ký tự</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Xác nhận mật khẩu</label>
+                            <input type="password" class="form-control" id="confirmPassword" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" class="btn btn-primary" onclick="changePassword()">Đổi mật khẩu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Suspend User Modal -->
+    <div class="modal fade" id="suspendUserModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Đình chỉ tài khoản</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="suspendUserForm">
+                        <input type="hidden" id="suspendUserId">
+                        <div class="mb-3">
+                            <label class="form-label">Lý do đình chỉ *</label>
+                            <textarea class="form-control" id="suspensionReason" rows="3" required placeholder="Nhập lý do đình chỉ tài khoản..."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Ngày kết thúc đình chỉ (tùy chọn)</label>
+                            <input type="date" class="form-control" id="suspensionEndDate">
+                            <div class="form-text">Để trống nếu đình chỉ vô thời hạn</div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" class="btn btn-danger" onclick="suspendUser()">Đình chỉ</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentPage = 1;
+        let currentUserId = null;
+
+        // Load page on startup
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStats();
+            loadUsers();
+        });
+
+        // Load user statistics
+        async function loadStats() {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch('/api/users/stats/dashboard', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    displayStats(result.data);
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        // Display statistics cards
+        function displayStats(stats) {
+            const statsContainer = document.getElementById('statsCards');
+            statsContainer.innerHTML = `
+                <div class="col-md-3">
+                    <div class="card stats-card">
+                        <div class="card-body text-center">
+                            <i class="fas fa-users fa-2x mb-2"></i>
+                            <h3>${stats.overview.total}</h3>
+                            <p class="mb-0">Tổng người dùng</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body text-center">
+                            <i class="fas fa-user-check fa-2x mb-2"></i>
+                            <h3>${stats.overview.active}</h3>
+                            <p class="mb-0">Đang hoạt động</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body text-center">
+                            <i class="fas fa-user-times fa-2x mb-2"></i>
+                            <h3>${stats.overview.inactive}</h3>
+                            <p class="mb-0">Không hoạt động</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-danger text-white">
+                        <div class="card-body text-center">
+                            <i class="fas fa-user-slash fa-2x mb-2"></i>
+                            <h3>${stats.overview.suspended}</h3>
+                            <p class="mb-0">Bị đình chỉ</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Load users with filters
+        async function loadUsers(page = 1) {
+            try {
+                const token = localStorage.getItem('token');
+                const search = document.getElementById('searchInput').value;
+                const department = document.getElementById('departmentFilter').value;
+                const role = document.getElementById('roleFilter').value;
+                const status = document.getElementById('statusFilter').value;
+
+                const params = new URLSearchParams({
+                    page: page,
+                    limit: 10
+                });
+
+                if (search) params.append('search', search);
+                if (department) params.append('department', department);
+                if (role) params.append('role', role);
+                if (status) params.append('status', status);
+
+                const response = await fetch(`/api/users?${params}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    displayUsers(result.data.users);
+                    displayPagination(result.data.pagination);
+                    currentPage = page;
+                } else {
+                    throw new Error('Failed to load users');
+                }
+            } catch (error) {
+                console.error('Error loading users:', error);
+                showAlert('Lỗi khi tải danh sách người dùng', 'danger');
+            }
+        }
+
+        // Display users in table
+        function displayUsers(users) {
+            const tbody = document.getElementById('usersTableBody');
+            tbody.innerHTML = users.map(user => {
+                const avatar = generateAvatar(user.name);
+                const statusBadge = getStatusBadge(user);
+                const departmentBadge = getDepartmentBadge(user.department);
+                const roleBadge = getRoleBadge(user.role);
+                const lastLogin = user.lastLogin ? new Date(user.lastLogin).toLocaleDateString('vi-VN') : 'Chưa đăng nhập';
+
+                return `
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="user-avatar me-3" style="background-color: ${avatar.color}">
+                                    ${avatar.initials}
+                                </div>
+                                <div>
+                                    <div class="fw-bold">${user.name}</div>
+                                    <small class="text-muted">${user.email}</small>
+                                    <br><small class="text-muted">${user.position}</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>${departmentBadge}</td>
+                        <td>${roleBadge}</td>
+                        <td>${statusBadge}</td>
+                        <td>${lastLogin}</td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="btn btn-sm btn-outline-primary" onclick="showUserDetails('${user._id}')" title="Xem chi tiết">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-warning" onclick="showChangePasswordModal('${user._id}')" title="Đổi mật khẩu">
+                                    <i class="fas fa-key"></i>
+                                </button>
+                                ${user.isActive ? 
+                                    `<button class="btn btn-sm btn-outline-secondary" onclick="toggleUserStatus('${user._id}', false)" title="Vô hiệu hóa">
+                                        <i class="fas fa-user-times"></i>
+                                    </button>` :
+                                    `<button class="btn btn-sm btn-outline-success" onclick="toggleUserStatus('${user._id}', true)" title="Kích hoạt">
+                                        <i class="fas fa-user-check"></i>
+                                    </button>`
+                                }
+                                ${user.isSuspended ?
+                                    `<button class="btn btn-sm btn-outline-info" onclick="unsuspendUser('${user._id}')" title="Bỏ đình chỉ">
+                                        <i class="fas fa-user-plus"></i>
+                                    </button>` :
+                                    `<button class="btn btn-sm btn-outline-danger" onclick="showSuspendModal('${user._id}')" title="Đình chỉ">
+                                        <i class="fas fa-user-slash"></i>
+                                    </button>`
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Generate user avatar
+        function generateAvatar(name) {
+            const colors = ['#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8', '#6f42c1'];
+            const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+            const color = colors[name.length % colors.length];
+            return { initials, color };
+        }
+
+        // Get status badge
+        function getStatusBadge(user) {
+            if (user.isSuspended) {
+                return '<span class="badge bg-danger status-badge">Bị đình chỉ</span>';
+            } else if (user.isActive) {
+                return '<span class="badge bg-success status-badge">Hoạt động</span>';
+            } else {
+                return '<span class="badge bg-secondary status-badge">Không hoạt động</span>';
+            }
+        }
+
+        // Get department badge
+        function getDepartmentBadge(department) {
+            const colors = {
+                'IT': 'primary',
+                'HR': 'success',
+                'Finance': 'warning',
+                'Sales': 'info',
+                'Marketing': 'danger',
+                'Operations': 'dark'
+            };
+            return `<span class="badge bg-${colors[department] || 'secondary'} department-badge">${department}</span>`;
+        }
+
+        // Get role badge
+        function getRoleBadge(role) {
+            const colors = {
+                'admin': 'danger',
+                'manager': 'warning',
+                'employee': 'primary'
+            };
+            const labels = {
+                'admin': 'Admin',
+                'manager': 'Manager',
+                'employee': 'Nhân viên'
+            };
+            return `<span class="badge bg-${colors[role]} department-badge">${labels[role]}</span>`;
+        }
+
+        // Display pagination
+        function displayPagination(pagination) {
+            const container = document.getElementById('paginationContainer');
+            if (pagination.pages <= 1) {
+                container.innerHTML = '';
+                return;
+            }
+
+            let paginationHTML = '<nav><ul class="pagination">';
+            
+            // Previous button
+            if (pagination.current > 1) {
+                paginationHTML += `<li class="page-item"><a class="page-link" href="#" onclick="loadUsers(${pagination.current - 1})">Trước</a></li>`;
+            }
+
+            // Page numbers
+            for (let i = 1; i <= pagination.pages; i++) {
+                if (i === pagination.current) {
+                    paginationHTML += `<li class="page-item active"><span class="page-link">${i}</span></li>`;
+                } else {
+                    paginationHTML += `<li class="page-item"><a class="page-link" href="#" onclick="loadUsers(${i})">${i}</a></li>`;
+                }
+            }
+
+            // Next button
+            if (pagination.current < pagination.pages) {
+                paginationHTML += `<li class="page-item"><a class="page-link" href="#" onclick="loadUsers(${pagination.current + 1})">Sau</a></li>`;
+            }
+
+            paginationHTML += '</ul></nav>';
+            container.innerHTML = paginationHTML;
+        }
+
+        // Show user details
+        async function showUserDetails(userId) {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`/api/users/${userId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    const user = result.data;
+                    
+                    document.getElementById('userDetailsContent').innerHTML = `
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Thông tin cơ bản</h6>
+                                <p><strong>Tên:</strong> ${user.name}</p>
+                                <p><strong>Email:</strong> ${user.email}</p>
+                                <p><strong>Phòng ban:</strong> ${user.department}</p>
+                                <p><strong>Chức vụ:</strong> ${user.position}</p>
+                                <p><strong>Quyền hạn:</strong> ${user.role}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Trạng thái tài khoản</h6>
+                                <p><strong>Trạng thái:</strong> ${getStatusBadge(user)}</p>
+                                <p><strong>Ngày tạo:</strong> ${new Date(user.createdAt).toLocaleDateString('vi-VN')}</p>
+                                <p><strong>Đăng nhập cuối:</strong> ${user.lastLogin ? new Date(user.lastLogin).toLocaleDateString('vi-VN') : 'Chưa đăng nhập'}</p>
+                                ${user.isSuspended ? `
+                                    <hr>
+                                    <h6 class="text-danger">Thông tin đình chỉ</h6>
+                                    <p><strong>Lý do:</strong> ${user.suspensionReason}</p>
+                                    <p><strong>Ngày đình chỉ:</strong> ${new Date(user.suspendedAt).toLocaleDateString('vi-VN')}</p>
+                                    ${user.suspensionEndDate ? `<p><strong>Kết thúc:</strong> ${new Date(user.suspensionEndDate).toLocaleDateString('vi-VN')}</p>` : '<p><strong>Thời hạn:</strong> Vô thời hạn</p>'}
+                                    ${user.suspendedBy ? `<p><strong>Người đình chỉ:</strong> ${user.suspendedBy.name}</p>` : ''}
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
+                    
+                    new bootstrap.Modal(document.getElementById('userDetailsModal')).show();
+                }
+            } catch (error) {
+                console.error('Error loading user details:', error);
+                showAlert('Lỗi khi tải thông tin người dùng', 'danger');
+            }
+        }
+
+        // Show change password modal
+        function showChangePasswordModal(userId) {
+            currentUserId = userId;
+            document.getElementById('changePasswordUserId').value = userId;
+            document.getElementById('changePasswordForm').reset();
+            new bootstrap.Modal(document.getElementById('changePasswordModal')).show();
+        }
+
+        // Change password
+        async function changePassword() {
+            const userId = document.getElementById('changePasswordUserId').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+
+            if (newPassword !== confirmPassword) {
+                showAlert('Mật khẩu xác nhận không khớp', 'danger');
+                return;
+            }
+
+            if (newPassword.length < 6) {
+                showAlert('Mật khẩu phải có ít nhất 6 ký tự', 'danger');
+                return;
+            }
+
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`/api/users/${userId}/password`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ newPassword })
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showAlert('Đã đổi mật khẩu thành công', 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('changePasswordModal')).hide();
+                } else {
+                    showAlert(result.message || 'Lỗi khi đổi mật khẩu', 'danger');
+                }
+            } catch (error) {
+                console.error('Error changing password:', error);
+                showAlert('Lỗi khi đổi mật khẩu', 'danger');
+            }
+        }
+
+        // Toggle user status
+        async function toggleUserStatus(userId, isActive) {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`/api/users/${userId}/status`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ isActive })
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showAlert(result.message, 'success');
+                    loadUsers(currentPage);
+                    loadStats();
+                } else {
+                    showAlert(result.message || 'Lỗi khi cập nhật trạng thái', 'danger');
+                }
+            } catch (error) {
+                console.error('Error toggling user status:', error);
+                showAlert('Lỗi khi cập nhật trạng thái', 'danger');
+            }
+        }
+
+        // Show suspend modal
+        function showSuspendModal(userId) {
+            currentUserId = userId;
+            document.getElementById('suspendUserId').value = userId;
+            document.getElementById('suspendUserForm').reset();
+            new bootstrap.Modal(document.getElementById('suspendUserModal')).show();
+        }
+
+        // Suspend user
+        async function suspendUser() {
+            const userId = document.getElementById('suspendUserId').value;
+            const reason = document.getElementById('suspensionReason').value;
+            const endDate = document.getElementById('suspensionEndDate').value;
+
+            if (!reason.trim()) {
+                showAlert('Vui lòng nhập lý do đình chỉ', 'danger');
+                return;
+            }
+
+            try {
+                const token = localStorage.getItem('token');
+                const body = { reason };
+                if (endDate) body.endDate = endDate;
+
+                const response = await fetch(`/api/users/${userId}/suspend`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(body)
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showAlert(result.message, 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('suspendUserModal')).hide();
+                    loadUsers(currentPage);
+                    loadStats();
+                } else {
+                    showAlert(result.message || 'Lỗi khi đình chỉ tài khoản', 'danger');
+                }
+            } catch (error) {
+                console.error('Error suspending user:', error);
+                showAlert('Lỗi khi đình chỉ tài khoản', 'danger');
+            }
+        }
+
+        // Unsuspend user
+        async function unsuspendUser(userId) {
+            if (!confirm('Bạn có chắc chắn muốn bỏ đình chỉ tài khoản này?')) {
+                return;
+            }
+
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`/api/users/${userId}/unsuspend`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showAlert(result.message, 'success');
+                    loadUsers(currentPage);
+                    loadStats();
+                } else {
+                    showAlert(result.message || 'Lỗi khi bỏ đình chỉ tài khoản', 'danger');
+                }
+            } catch (error) {
+                console.error('Error unsuspending user:', error);
+                showAlert('Lỗi khi bỏ đình chỉ tài khoản', 'danger');
+            }
+        }
+
+        // Show alert
+        function showAlert(message, type) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+            alertDiv.style.top = '20px';
+            alertDiv.style.right = '20px';
+            alertDiv.style.zIndex = '9999';
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.body.appendChild(alertDiv);
+
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+        }
+
+        // Logout function
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = '/login.html';
+        }
+
+        // Search on Enter key
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                loadUsers();
+            }
+        });
+    </script>
+</body>
+</html>

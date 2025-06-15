@@ -303,7 +303,7 @@ button:active {
     display: none;
 }
 
-.chat-section-active #chatHistorySidebar {
+body.chat-section-active #chatHistorySidebar {
     display: block;
 }
 

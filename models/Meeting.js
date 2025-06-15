@@ -18,16 +18,17 @@ const meetingSchema = new mongoose.Schema({
     participants: [{
         user: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'User',
-            required: true
+            ref: 'User'
         },
         status: {
             type: String,
-            enum: ['invited', 'accepted', 'declined', 'tentative'],
-            default: 'invited'
+            enum: ['pending', 'accepted', 'declined'],
+            default: 'pending'
         },
-        joinedAt: Date,
-        leftAt: Date
+        notified: {
+            type: Boolean,
+            default: false
+        }
     }],
     startTime: {
         type: Date,
@@ -39,177 +40,131 @@ const meetingSchema = new mongoose.Schema({
     },
     location: {
         type: String,
-        default: ''
+        required: true
     },
-    meetingLink: {
+    meetingType: {
         type: String,
-        default: ''
+        enum: ['in-person', 'online', 'hybrid'],
+        required: true
+    },
+    onlineMeetingLink: {
+        type: String
     },
     agenda: [{
-        item: String,
+        topic: String,
         duration: Number, // in minutes
         presenter: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User'
         }
     }],
-    status: {
-        type: String,
-        enum: ['scheduled', 'in_progress', 'completed', 'cancelled'],
-        default: 'scheduled'
-    },
-    meetingType: {
-        type: String,
-        enum: ['team_meeting', 'project_review', 'client_meeting', 'training', 'other'],
-        default: 'team_meeting'
-    },
-    department: {
-        type: String,
-        required: true
-    },
-    isRecurring: {
-        type: Boolean,
-        default: false
-    },
-    recurrencePattern: {
-        frequency: {
-            type: String,
-            enum: ['daily', 'weekly', 'monthly'],
-            default: 'weekly'
-        },
-        interval: {
-            type: Number,
-            default: 1
-        },
-        endDate: Date
-    },
-    minutes: {
-        content: String,
-        recordedBy: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'User'
-        },
-        recordedAt: Date
-    },
     attachments: [{
-        name: String,
-        url: String,
-        uploadedBy: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'User'
-        },
+        filename: String,
+        originalName: String,
+        path: String,
         uploadedAt: {
             type: Date,
             default: Date.now
         }
     }],
-    tags: [String]
+    status: {
+        type: String,
+        enum: ['scheduled', 'in-progress', 'completed', 'cancelled'],
+        default: 'scheduled'
+    },
+    reminderSent: {
+        type: Boolean,
+        default: false
+    },
+    recurring: {
+        isRecurring: {
+            type: Boolean,
+            default: false
+        },
+        frequency: {
+            type: String,
+            enum: ['daily', 'weekly', 'monthly', 'none'],
+            default: 'none'
+        },
+        endDate: Date
+    }
 }, {
     timestamps: true
 });
 
-// Validate end time is after start time
-meetingSchema.pre('save', function(next) {
-    if (this.endTime <= this.startTime) {
-        next(new Error('Thời gian kết thúc phải sau thời gian bắt đầu'));
-    }
-    next();
+// Index for efficient querying
+meetingSchema.index({ startTime: 1, status: 1 });
+meetingSchema.index({ organizer: 1, status: 1 });
+meetingSchema.index({ 'participants.user': 1, status: 1 });
+
+// Virtual for duration in minutes
+meetingSchema.virtual('durationMinutes').get(function() {
+    return Math.round((this.endTime - this.startTime) / (1000 * 60));
 });
 
-// Tìm các cuộc họp sắp tới của user
-meetingSchema.statics.findUpcoming = function(userId) {
-    const now = new Date();
-    
-    return this.find({
-        $or: [
-            { organizer: userId },
-            { 'participants.user': userId }
-        ],
-        startTime: { $gte: now },
-        status: { $in: ['scheduled', 'in_progress'] }
-    })
-    .populate('organizer', 'name email department')
-    .populate('participants.user', 'name email department')
-    .sort({ startTime: 1 })
-    .limit(10);
-};
-
-// Tìm các cuộc họp trong ngày
-meetingSchema.statics.findToday = function(userId) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    return this.find({
-        $or: [
-            { organizer: userId },
-            { 'participants.user': userId }
-        ],
-        startTime: { 
-            $gte: today,
-            $lt: tomorrow
-        },
-        status: { $in: ['scheduled', 'in_progress'] }
-    })
-    .populate('organizer', 'name email department')
-    .populate('participants.user', 'name email department')
-    .sort({ startTime: 1 });
-};
-
-// Kiểm tra xung đột lịch họp
-meetingSchema.statics.checkConflict = async function(userId, startTime, endTime, excludeMeetingId = null) {
-    const query = {
-        $or: [
-            { organizer: userId },
-            { 'participants.user': userId }
-        ],
-        status: { $in: ['scheduled', 'in_progress'] },
-        $or: [
-            {
-                startTime: { $lt: endTime },
-                endTime: { $gt: startTime }
-            }
-        ]
-    };
-
-    if (excludeMeetingId) {
-        query._id = { $ne: excludeMeetingId };
+// Method to add participant
+meetingSchema.methods.addParticipant = async function(userId) {
+    if (!this.participants.find(p => p.user.toString() === userId.toString())) {
+        this.participants.push({ user: userId });
+        return this.save();
     }
-
-    const conflicts = await this.find(query);
-    return conflicts.length > 0;
+    return this;
 };
 
-// Thống kê cuộc họp theo phòng ban
-meetingSchema.statics.getStatsByDepartment = async function(department, startDate, endDate) {
-    const stats = await this.aggregate([
-        {
-            $match: {
-                department,
-                startTime: { $gte: startDate, $lte: endDate }
-            }
-        },
-        {
-            $group: {
-                _id: '$status',
-                count: { $sum: 1 },
-                totalDuration: {
-                    $sum: {
-                        $divide: [
-                            { $subtract: ['$endTime', '$startTime'] },
-                            1000 * 60 // Convert to minutes
-                        ]
-                    }
-                }
-            }
+// Method to update participant status
+meetingSchema.methods.updateParticipantStatus = async function(userId, status) {
+    const participant = this.participants.find(p => p.user.toString() === userId.toString());
+    if (participant) {
+        participant.status = status;
+        return this.save();
+    }
+    return this;
+};
+
+// Method to check for conflicts
+meetingSchema.statics.checkConflicts = async function(startTime, endTime, participants) {
+    return this.find({
+        status: 'scheduled',
+        startTime: { $lt: endTime },
+        endTime: { $gt: startTime },
+        'participants.user': { $in: participants }
+    }).populate('participants.user', 'name email department');
+};
+
+// Method to get upcoming meetings for a user
+meetingSchema.statics.getUpcomingMeetings = async function(userId) {
+    return this.find({
+        'participants.user': userId,
+        status: 'scheduled',
+        startTime: { $gt: new Date() }
+    })
+    .sort({ startTime: 1 })
+    .populate('organizer', 'name email department')
+    .populate('participants.user', 'name email department');
+};
+
+// Method to send meeting notifications
+meetingSchema.methods.sendNotifications = async function() {
+    const Mailbox = mongoose.model('Mailbox');
+    
+    // Send to all participants who haven't been notified
+    for (const participant of this.participants.filter(p => !p.notified)) {
+        const mailbox = await Mailbox.findOne({ owner: participant.user });
+        if (mailbox) {
+            await mailbox.addMessage({
+                type: 'meeting',
+                title: `New Meeting: ${this.title}`,
+                content: `You have been invited to a meeting "${this.title}" scheduled for ${this.startTime.toLocaleString()}`,
+                sender: this.organizer,
+                reference: this._id,
+                labels: ['work']
+            });
+            
+            participant.notified = true;
         }
-    ]);
-
-    return stats;
+    }
+    
+    return this.save();
 };
 
-const Meeting = mongoose.model('Meeting', meetingSchema);
-
-module.exports = Meeting;
+module.exports = mongoose.model('Meeting', meetingSchema);

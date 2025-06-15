@@ -6,6 +6,7 @@ const Meeting = require('../models/Meeting');
 const Task = require('../models/Task');
 const AssistantChat = require('../models/AssistantChat');
 const { auth } = require('../middleware/auth');
+const mongoose = require('mongoose');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
@@ -16,11 +17,11 @@ async function prepareCompanyContext(user) {
     const accessibleDocs = await CompanyDocument.findAccessible(user);
     
     // Lấy các cuộc họp sắp tới
-    const upcomingMeetings = await Meeting.findUpcoming(user._id);
+    const upcomingMeetings = await Meeting.findUpcoming(user.id);
     
     // Lấy các công việc đang thực hiện
     const activeTasks = await Task.find({
-        assignedTo: user._id,
+        assignedTo: user.id,
         status: { $in: ['pending', 'in_progress'] }
     }).sort({ dueDate: 1 });
 
@@ -46,77 +47,105 @@ async function prepareCompanyContext(user) {
 router.post('/chat', auth, async (req, res) => {
     try {
         const { message, chatId } = req.body;
-        const companyContext = await prepareCompanyContext(req.user);
+        let response;
 
-        // Chuẩn bị system message với context của công ty
-        const systemMessage = `Bạn là trợ lý ảo của công ty Khải Đỗ. 
-        Thông tin người dùng hiện tại:
-        - Tên: ${companyContext.userContext.name}
-        - Vị trí: ${companyContext.userContext.position}
-        - Phòng ban: ${companyContext.userContext.department}
-        - Vai trò: ${companyContext.userContext.role}
+        // Set initial response
+        response = message 
+            ? undefined  // Will be set by Gemini API
+            : "Xin chào, Trợ lý ảo công ty Khải Đỗ có thể giúp gì cho bạn?";
 
-        Bạn có quyền truy cập vào:
-        - ${companyContext.documents.length} tài liệu công ty
-        - ${companyContext.meetings.length} cuộc họp sắp tới
-        - ${companyContext.tasks.length} công việc đang thực hiện
+        // Only call Gemini API if there's a message
+        if (message) {
+            try {
+                const companyContext = await prepareCompanyContext(req.user);
 
-        Hãy trả lời dựa trên ngữ cảnh công ty và quyền truy cập của người dùng.`;
+                // Chuẩn bị system message với context của công ty
+                const systemMessage = `Bạn là trợ lý ảo của công ty Khải Đỗ. 
+                Thông tin người dùng hiện tại:
+                - Tên: ${companyContext.userContext.name}
+                - Vị trí: ${companyContext.userContext.position}
+                - Phòng ban: ${companyContext.userContext.department}
+                - Vai trò: ${companyContext.userContext.role}
 
-        // Tạo completion với Gemini
-        const prompt = `${systemMessage}\n\nUser: ${message}`;
-        const result = await model.generateContent(prompt);
-        const geminiResponse = await result.response;
-        let response = geminiResponse.text();
+                Bạn có quyền truy cập vào:
+                - ${companyContext.documents.length} tài liệu công ty
+                - ${companyContext.meetings.length} cuộc họp sắp tới
+                - ${companyContext.tasks.length} công việc đang thực hiện
 
-        // Nếu câu hỏi liên quan đến tài liệu
-        if (message.toLowerCase().includes('tài liệu') || 
-            message.toLowerCase().includes('hướng dẫn') ||
-            message.toLowerCase().includes('chính sách')) {
-            
-            // Tìm tài liệu liên quan
-            const relevantDocs = companyContext.documents.filter(doc => 
-                doc.content.toLowerCase().includes(message.toLowerCase()) ||
-                doc.tags.some(tag => message.toLowerCase().includes(tag.toLowerCase()))
-            );
+                Hãy trả lời dựa trên ngữ cảnh công ty và quyền truy cập của người dùng.`;
 
-            if (relevantDocs.length > 0) {
-                response += '\n\nTài liệu liên quan:\n' + relevantDocs.map(doc => 
-                    `- ${doc.title} (${doc.category})`
-                ).join('\n');
+                // Tạo completion với Gemini
+                const prompt = `${systemMessage}\n\nUser: ${message}`;
+                const result = await model.generateContent(prompt);
+                const geminiResponse = await result.response;
+                response = geminiResponse.text();
+
+                // Nếu câu hỏi liên quan đến tài liệu
+                if (message.toLowerCase().includes('tài liệu') || 
+                    message.toLowerCase().includes('hướng dẫn') ||
+                    message.toLowerCase().includes('chính sách')) {
+                    
+                    // Tìm tài liệu liên quan
+                    const relevantDocs = companyContext.documents.filter(doc => 
+                        doc.content.toLowerCase().includes(message.toLowerCase()) ||
+                        doc.tags.some(tag => message.toLowerCase().includes(tag.toLowerCase()))
+                    );
+
+                    if (relevantDocs.length > 0) {
+                        response += '\n\nTài liệu liên quan:\n' + relevantDocs.map(doc => 
+                            `- ${doc.title} (${doc.category})`
+                        ).join('\n');
+                    }
+                }
+
+                // Nếu câu hỏi liên quan đến lịch họp
+                if (message.toLowerCase().includes('họp') || 
+                    message.toLowerCase().includes('cuộc họp') ||
+                    message.toLowerCase().includes('lịch')) {
+                    
+                    if (companyContext.meetings.length > 0) {
+                        response += '\n\nCuộc họp sắp tới:\n' + companyContext.meetings.map(meeting =>
+                            `- ${meeting.title} (${new Date(meeting.startTime).toLocaleString()})`
+                        ).join('\n');
+                    }
+                }
+
+                // Nếu câu hỏi liên quan đến công việc
+                if (message.toLowerCase().includes('công việc') || 
+                    message.toLowerCase().includes('task') ||
+                    message.toLowerCase().includes('nhiệm vụ')) {
+                    
+                    if (companyContext.tasks.length > 0) {
+                        response += '\n\nCông việc đang thực hiện:\n' + companyContext.tasks.map(task =>
+                            `- ${task.title} (${task.status}, due: ${new Date(task.dueDate).toLocaleDateString()})`
+                        ).join('\n');
+                    }
+                }
+            } catch (apiError) {
+                console.error('API Error:', apiError);
+                // If API call fails, return the fallback message
+                response = "Xin lỗi, tôi không thể xử lý yêu cầu lúc này";
             }
         }
 
-        // Nếu câu hỏi liên quan đến lịch họp
-        if (message.toLowerCase().includes('họp') || 
-            message.toLowerCase().includes('cuộc họp') ||
-            message.toLowerCase().includes('lịch')) {
-            
-            if (companyContext.meetings.length > 0) {
-                response += '\n\nCuộc họp sắp tới:\n' + companyContext.meetings.map(meeting =>
-                    `- ${meeting.title} (${new Date(meeting.startTime).toLocaleString()})`
-                ).join('\n');
-            }
-        }
-
-        // Nếu câu hỏi liên quan đến công việc
-        if (message.toLowerCase().includes('công việc') || 
-            message.toLowerCase().includes('task') ||
-            message.toLowerCase().includes('nhiệm vụ')) {
-            
-            if (companyContext.tasks.length > 0) {
-                response += '\n\nCông việc đang thực hiện:\n' + companyContext.tasks.map(task =>
-                    `- ${task.title} (${task.status}, due: ${new Date(task.dueDate).toLocaleDateString()})`
-                ).join('\n');
-            }
+        // For now, just return the response without saving to database for testing
+        if (!req.user || !req.user.id) {
+            console.error('User ID is missing:', req.user);
+            return res.status(400).json({
+                error: 'User authentication failed',
+                message: 'User ID is required'
+            });
         }
 
         // Lưu tin nhắn vào database
         let chat;
         if (chatId) {
             // Cập nhật chat hiện có
-            chat = await AssistantChat.findOne({ _id: chatId, userId: req.user._id });
-            if (chat) {
+            chat = await AssistantChat.findOne({ 
+                _id: new mongoose.Types.ObjectId(chatId), 
+                userId: new mongoose.Types.ObjectId(req.user.id) 
+            });
+            if (chat && message) {
                 chat.messages.push(
                     { content: message, sender: 'user' },
                     { content: response, sender: 'assistant' }
@@ -125,12 +154,20 @@ router.post('/chat', auth, async (req, res) => {
             }
         } else {
             // Tạo chat mới
-            chat = new AssistantChat({
-                userId: req.user._id,
-                messages: [
+            const messages = [];
+            if (message) {
+                messages.push(
                     { content: message, sender: 'user' },
                     { content: response, sender: 'assistant' }
-                ]
+                );
+            } else {
+                // For welcome message, only add assistant response
+                messages.push({ content: response, sender: 'assistant' });
+            }
+            
+            chat = new AssistantChat({
+                userId: new mongoose.Types.ObjectId(req.user.id),
+                messages: messages
             });
             await chat.save();
         }
