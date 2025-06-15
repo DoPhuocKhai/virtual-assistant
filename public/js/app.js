@@ -213,6 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentChatId = null;
     let messageCount = 0;
     const MESSAGE_LIMIT = 10;
+    let recognition = null;
 
     function initializeChat() {
         const chatForm = document.getElementById('chatForm');
@@ -220,6 +221,48 @@ document.addEventListener('DOMContentLoaded', () => {
         const chatMessages = document.getElementById('chatMessages');
         const newChatBtn = document.getElementById('newChatBtn');
         const sendButton = document.getElementById('sendButton');
+        const micButton = document.getElementById('micButton');
+
+        // Initialize speech recognition
+        if ('webkitSpeechRecognition' in window) {
+            recognition = new webkitSpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'vi-VN';
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                messageInput.value = transcript;
+                micButton.classList.remove('bg-red-100');
+                micButton.classList.add('bg-gray-100');
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                micButton.classList.remove('bg-red-100');
+                micButton.classList.add('bg-gray-100');
+            };
+
+            recognition.onend = () => {
+                micButton.classList.remove('bg-red-100');
+                micButton.classList.add('bg-gray-100');
+            };
+
+            // Mic button click handler
+            micButton.addEventListener('click', () => {
+                if (recognition.started) {
+                    recognition.stop();
+                    micButton.classList.remove('bg-red-100');
+                    micButton.classList.add('bg-gray-100');
+                } else {
+                    recognition.start();
+                    micButton.classList.remove('bg-gray-100');
+                    micButton.classList.add('bg-red-100');
+                }
+            });
+        } else {
+            micButton.style.display = 'none';
+        }
         
         // Load active chat on initialization
         loadActiveChat();
@@ -435,13 +478,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const messageDiv = document.createElement('div');
         messageDiv.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
         
+        const speakButtonHtml = sender === 'assistant' ? `
+            <button class="speak-btn ml-2 p-1 text-gray-500 hover:text-blue-600 transition-colors" 
+                    onclick="speakText('${message.replace(/'/g, "\\'")}')">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 14.142M9 9a3 3 0 000 6h3v2a1 1 0 001 1h1a1 1 0 001-1v-2h3a3 3 0 000-6H9z" />
+                </svg>
+            </button>
+        ` : '';
+        
         messageDiv.innerHTML = `
             <div class="max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
                 sender === 'user' 
                     ? 'bg-blue-600 text-white' 
                     : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
             }">
-                <p class="text-sm">${message}</p>
+                <div class="flex items-start justify-between">
+                    <p class="text-sm flex-1">${message}</p>
+                    ${speakButtonHtml}
+                </div>
                 <p class="text-xs mt-1 opacity-70">${new Date().toLocaleTimeString()}</p>
             </div>
         `;
