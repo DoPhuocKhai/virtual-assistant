@@ -48,20 +48,36 @@ router.post('/reset-password', async (req, res) => {
     try {
         const { token, newPassword, email } = req.body;
         
+        // Find email from verification codes if not provided
+        let userEmail = email;
+        if (!userEmail) {
+            // Find email by token
+            for (const [storedEmail, verification] of verificationCodes.entries()) {
+                if (verification.code === token) {
+                    userEmail = storedEmail;
+                    break;
+                }
+            }
+        }
+
+        if (!userEmail) {
+            return res.status(400).json({ message: 'Mã xác nhận không hợp lệ' });
+        }
+        
         // Verify the code
-        const verification = verificationCodes.get(email);
+        const verification = verificationCodes.get(userEmail);
         if (!verification || verification.code !== token) {
             return res.status(400).json({ message: 'Mã xác nhận không hợp lệ' });
         }
 
         // Check if code is expired (15 minutes)
         if (Date.now() - verification.timestamp > 15 * 60 * 1000) {
-            verificationCodes.delete(email);
+            verificationCodes.delete(userEmail);
             return res.status(400).json({ message: 'Mã xác nhận đã hết hạn' });
         }
 
         // Update password
-        const user = await User.findOne({ email });
+        const user = await User.findOne({ email: userEmail });
         if (!user) {
             return res.status(404).json({ message: 'Không tìm thấy tài khoản' });
         }
@@ -72,7 +88,7 @@ router.post('/reset-password', async (req, res) => {
         await user.save();
 
         // Clear verification code
-        verificationCodes.delete(email);
+        verificationCodes.delete(userEmail);
 
         res.json({ message: 'Mật khẩu đã được đặt lại thành công' });
     } catch (error) {

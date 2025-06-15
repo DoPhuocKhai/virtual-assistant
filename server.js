@@ -61,9 +61,9 @@ const authRoutes = require('./routes/auth');
 const assistantChatRoutes = require('./routes/assistantChat');
 
 // Import middleware
-const { auth } = require('./middleware/auth');
+const auth = require('./middleware/auth');
 
-// Use routes
+// Use routes (auth routes don't need authentication middleware)
 app.use('/api/auth', authRoutes);
 app.use('/api/assistant', auth, assistantRoutes);
 app.use('/api/tasks', auth, taskRoutes);

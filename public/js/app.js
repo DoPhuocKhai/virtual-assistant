@@ -53,11 +53,16 @@ document.addEventListener('DOMContentLoaded', () => {
         showForm(loginForm, deleteAccountForm, registerForm, resetPasswordForm);
     });
 
+    // Store email for password reset flow
+    let resetEmail = '';
+
     // Handle password reset flow
     sendCodeBtn.addEventListener('click', async () => {
         const email = document.getElementById('resetEmail').value;
+        resetEmail = email; // Store email for later use
+        
         try {
-            const response = await fetch('/auth/forgot-password', {
+            const response = await fetch('/api/auth/forgot-password', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -69,9 +74,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 verificationCodeSection.classList.remove('hidden');
                 sendCodeBtn.disabled = true;
                 sendCodeBtn.classList.add('opacity-50');
+                sendCodeBtn.textContent = 'Đã gửi';
                 setTimeout(() => {
                     sendCodeBtn.disabled = false;
                     sendCodeBtn.classList.remove('opacity-50');
+                    sendCodeBtn.textContent = 'Gửi lại';
                 }, 60000); // Enable resend after 1 minute
             } else {
                 const data = await response.json();
@@ -89,14 +96,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const newPassword = document.getElementById('newPassword').value;
 
         try {
-            const response = await fetch('/auth/reset-password', {
+            const response = await fetch('/api/auth/reset-password', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
                     token: code,
-                    newPassword
+                    newPassword,
+                    email: resetEmail
                 })
             });
 
@@ -104,6 +112,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (response.ok) {
                 alert('Đặt lại mật khẩu thành công');
                 showForm(loginForm, resetPasswordForm);
+                // Reset form
+                resetPasswordForm.reset();
+                verificationCodeSection.classList.add('hidden');
+                newPasswordSection.classList.add('hidden');
+                resetEmail = '';
             } else {
                 alert(data.message || 'Không thể đặt lại mật khẩu');
             }
@@ -122,7 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const response = await fetch('/auth/delete-account', {
+            const response = await fetch('/api/auth/delete-account', {
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json',
