@@ -26,6 +26,16 @@
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Mật khẩu</label>
                     <input type="password" id="loginPassword" required 
                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    <div class="mt-1 flex justify-between items-center">
+                        <button type="button" id="forgotPasswordBtn" 
+                                class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                            Quên mật khẩu?
+                        </button>
+                        <button type="button" id="deleteAccountBtn" 
+                                class="text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300">
+                            Xóa tài khoản
+                        </button>
+                    </div>
                 </div>
                 <button type="submit" 
                         class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
@@ -71,6 +81,60 @@
                         class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                     Đăng ký
                 </button>
+            </form>
+
+            <!-- Reset Password Form -->
+            <form id="resetPasswordForm" class="space-y-4 hidden">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
+                    <input type="email" id="resetEmail" required 
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <div id="verificationCodeSection" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Mã xác nhận</label>
+                    <div class="flex space-x-2">
+                        <input type="text" id="verificationCode" required 
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        <button type="button" id="sendCodeBtn"
+                                class="mt-1 px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700">
+                            Gửi mã
+                        </button>
+                    </div>
+                </div>
+                <div id="newPasswordSection" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Mật khẩu mới</label>
+                    <input type="password" id="newPassword" required 
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <div class="flex space-x-2">
+                    <button type="button" id="backToLoginBtn"
+                            class="w-1/2 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                        Quay lại
+                    </button>
+                    <button type="submit" id="resetPasswordBtn"
+                            class="w-1/2 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
+                        Đặt lại mật khẩu
+                    </button>
+                </div>
+            </form>
+
+            <!-- Delete Account Form -->
+            <form id="deleteAccountForm" class="space-y-4 hidden">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nhập mật khẩu để xác nhận</label>
+                    <input type="password" id="deleteAccountPassword" required 
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <div class="flex space-x-2">
+                    <button type="button" id="cancelDeleteBtn"
+                            class="w-1/2 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                        Hủy
+                    </button>
+                    <button type="submit"
+                            class="w-1/2 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700">
+                        Xác nhận xóa
+                    </button>
+                </div>
             </form>
         </div>
     </div>

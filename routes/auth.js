@@ -1,259 +1,196 @@
 const express = require('express');
+const router = express.Router();
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const { auth } = require('../middleware/auth');
-const router = express.Router();
+const auth = require('../middleware/auth');
+const { sendVerificationEmail } = require('../utils/emailService');
+const crypto = require('crypto');
 
-// Đăng ký tài khoản công khai
-router.post('/register', async (req, res) => {
+// Store verification codes temporarily (in production, use Redis or similar)
+const verificationCodes = new Map();
+
+// Generate verification code
+const generateVerificationCode = () => {
+    return crypto.randomInt(100000, 999999).toString();
+};
+
+// Forgot password route
+router.post('/forgot-password', async (req, res) => {
     try {
-        const { email, password, name, department, position } = req.body;
+        const { email } = req.body;
+        const user = await User.findOne({ email });
 
-        // Kiểm tra email đã tồn tại
-        const existingUser = await User.findOne({ email });
-        if (existingUser) {
-            return res.status(400).json({
-                error: 'Email đã được sử dụng',
-                message: 'Vui lòng sử dụng email khác'
-            });
+        if (!user) {
+            return res.status(404).json({ message: 'Không tìm thấy tài khoản với email này' });
         }
 
-        // Tạo user mới với role employee mặc định
-        const user = new User({
-            email,
-            password,
-            name,
-            department,
-            position,
-            role: 'employee',
-            permissions: ['view_company_docs', 'manage_tasks']
+        // Generate and store verification code
+        const code = generateVerificationCode();
+        verificationCodes.set(email, {
+            code,
+            timestamp: Date.now(),
+            attempts: 0
         });
 
-        await user.save();
+        // Send verification email
+        await sendVerificationEmail(email, code);
 
-        res.status(201).json({
-            message: 'Đăng ký tài khoản thành công',
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                role: user.role,
-                department: user.department
-            }
-        });
+        res.json({ message: 'Mã xác nhận đã được gửi đến email của bạn' });
     } catch (error) {
-        res.status(400).json({
-            error: 'Không thể tạo tài khoản',
-            message: error.message
-        });
+        console.error('Forgot password error:', error);
+        res.status(500).json({ message: 'Lỗi server' });
     }
 });
 
-// Đăng ký tài khoản bởi admin (với quyền cao hơn)
-router.post('/admin-register', auth, async (req, res) => {
+// Reset password route
+router.post('/reset-password', async (req, res) => {
     try {
-        // Kiểm tra quyền admin
-        if (req.user.role !== 'admin') {
-            return res.status(403).json({
-                error: 'Không có quyền truy cập',
-                message: 'Chỉ admin mới có thể tạo tài khoản với quyền đặc biệt'
-            });
+        const { token, newPassword, email } = req.body;
+        
+        // Verify the code
+        const verification = verificationCodes.get(email);
+        if (!verification || verification.code !== token) {
+            return res.status(400).json({ message: 'Mã xác nhận không hợp lệ' });
         }
 
-        const user = new User(req.body);
+        // Check if code is expired (15 minutes)
+        if (Date.now() - verification.timestamp > 15 * 60 * 1000) {
+            verificationCodes.delete(email);
+            return res.status(400).json({ message: 'Mã xác nhận đã hết hạn' });
+        }
+
+        // Update password
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: 'Không tìm thấy tài khoản' });
+        }
+
+        // Hash new password
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(newPassword, salt);
         await user.save();
 
-        res.status(201).json({
-            message: 'Tạo tài khoản thành công',
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                role: user.role,
-                department: user.department
-            }
-        });
+        // Clear verification code
+        verificationCodes.delete(email);
+
+        res.json({ message: 'Mật khẩu đã được đặt lại thành công' });
     } catch (error) {
-        res.status(400).json({
-            error: 'Không thể tạo tài khoản',
-            message: error.message
-        });
+        console.error('Reset password error:', error);
+        res.status(500).json({ message: 'Lỗi server' });
     }
 });
 
-// Đăng nhập
+// Delete account route
+router.delete('/delete-account', auth, async (req, res) => {
+    try {
+        const { password } = req.body;
+        const user = await User.findById(req.user.id);
+
+        // Verify password
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return res.status(400).json({ message: 'Mật khẩu không đúng' });
+        }
+
+        // Delete user
+        await User.findByIdAndDelete(req.user.id);
+
+        res.json({ message: 'Tài khoản đã được xóa thành công' });
+    } catch (error) {
+        console.error('Delete account error:', error);
+        res.status(500).json({ message: 'Lỗi server' });
+    }
+});
+
+// Login route
 router.post('/login', async (req, res) => {
     try {
         const { email, password } = req.body;
         const user = await User.findOne({ email });
 
-        if (!user || !(await user.comparePassword(password))) {
-            throw new Error('Email hoặc mật khẩu không chính xác');
-        }
-
-        if (user.status !== 'active') {
-            throw new Error('Tài khoản đã bị vô hiệu hóa');
-        }
-
-        const token = jwt.sign(
-            { userId: user._id },
-            process.env.JWT_SECRET,
-            { expiresIn: '24h' }
-        );
-
-        // Cập nhật thời gian đăng nhập cuối
-        user.lastLogin = new Date();
-        await user.save();
-
-        res.json({
-            message: 'Đăng nhập thành công',
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                role: user.role,
-                department: user.department,
-                permissions: user.permissions
-            },
-            token
-        });
-    } catch (error) {
-        res.status(401).json({
-            error: 'Đăng nhập thất bại',
-            message: error.message
-        });
-    }
-});
-
-// Lấy thông tin người dùng hiện tại
-router.get('/me', auth, async (req, res) => {
-    try {
-        res.json({
-            user: {
-                id: req.user._id,
-                name: req.user.name,
-                email: req.user.email,
-                role: req.user.role,
-                department: req.user.department,
-                permissions: req.user.permissions,
-                position: req.user.position,
-                avatar: req.user.avatar,
-                lastLogin: req.user.lastLogin
-            }
-        });
-    } catch (error) {
-        res.status(500).json({
-            error: 'Không thể lấy thông tin người dùng',
-            message: error.message
-        });
-    }
-});
-
-// Đổi mật khẩu
-router.post('/change-password', auth, async (req, res) => {
-    try {
-        const { currentPassword, newPassword } = req.body;
-        const user = req.user;
-
-        // Kiểm tra mật khẩu hiện tại
-        if (!(await user.comparePassword(currentPassword))) {
-            throw new Error('Mật khẩu hiện tại không chính xác');
-        }
-
-        // Cập nhật mật khẩu mới
-        user.password = newPassword;
-        await user.save();
-
-        res.json({
-            message: 'Đổi mật khẩu thành công'
-        });
-    } catch (error) {
-        res.status(400).json({
-            error: 'Không thể đổi mật khẩu',
-            message: error.message
-        });
-    }
-});
-
-// Cập nhật thông tin cá nhân
-router.patch('/profile', auth, async (req, res) => {
-    try {
-        const allowedUpdates = ['name', 'avatar'];
-        const updates = Object.keys(req.body);
-        const isValidOperation = updates.every(update => allowedUpdates.includes(update));
-
-        if (!isValidOperation) {
-            throw new Error('Các trường không hợp lệ');
-        }
-
-        updates.forEach(update => req.user[update] = req.body[update]);
-        await req.user.save();
-
-        res.json({
-            message: 'Cập nhật thông tin thành công',
-            user: {
-                id: req.user._id,
-                name: req.user.name,
-                email: req.user.email,
-                avatar: req.user.avatar
-            }
-        });
-    } catch (error) {
-        res.status(400).json({
-            error: 'Không thể cập nhật thông tin',
-            message: error.message
-        });
-    }
-});
-
-// Admin: Quản lý người dùng
-router.get('/users', auth, async (req, res) => {
-    try {
-        if (req.user.role !== 'admin') {
-            throw new Error('Chỉ admin mới có quyền xem danh sách người dùng');
-        }
-
-        const users = await User.find({}, '-password');
-        res.json({ users });
-    } catch (error) {
-        res.status(403).json({
-            error: 'Không có quyền truy cập',
-            message: error.message
-        });
-    }
-});
-
-// Admin: Cập nhật trạng thái người dùng
-router.patch('/users/:userId/status', auth, async (req, res) => {
-    try {
-        if (req.user.role !== 'admin') {
-            throw new Error('Chỉ admin mới có quyền thay đổi trạng thái người dùng');
-        }
-
-        const { status } = req.body;
-        const user = await User.findById(req.params.userId);
-
         if (!user) {
-            throw new Error('Không tìm thấy người dùng');
+            return res.status(400).json({ message: 'Email hoặc mật khẩu không đúng' });
         }
 
-        user.status = status;
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return res.status(400).json({ message: 'Email hoặc mật khẩu không đúng' });
+        }
+
+        const payload = {
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                department: user.department,
+                position: user.position
+            }
+        };
+
+        jwt.sign(
+            payload,
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' },
+            (err, token) => {
+                if (err) throw err;
+                res.json({ token });
+            }
+        );
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(500).json({ message: 'Lỗi server' });
+    }
+});
+
+// Register route
+router.post('/register', async (req, res) => {
+    try {
+        const { email, password, name, department, position } = req.body;
+
+        // Check if user already exists
+        let user = await User.findOne({ email });
+        if (user) {
+            return res.status(400).json({ message: 'Email đã được sử dụng' });
+        }
+
+        // Create new user
+        user = new User({
+            email,
+            password,
+            name,
+            department,
+            position
+        });
+
+        // Hash password
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(password, salt);
         await user.save();
 
-        res.json({
-            message: 'Cập nhật trạng thái thành công',
+        // Create and return JWT token
+        const payload = {
             user: {
-                id: user._id,
-                name: user.name,
+                id: user.id,
                 email: user.email,
-                status: user.status
+                name: user.name,
+                department: user.department,
+                position: user.position
             }
-        });
+        };
+
+        jwt.sign(
+            payload,
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' },
+            (err, token) => {
+                if (err) throw err;
+                res.json({ token });
+            }
+        );
     } catch (error) {
-        res.status(400).json({
-            error: 'Không thể cập nhật trạng thái',
-            message: error.message
-        });
+        console.error('Register error:', error);
+        res.status(500).json({ message: 'Lỗi server' });
     }
 });
 
