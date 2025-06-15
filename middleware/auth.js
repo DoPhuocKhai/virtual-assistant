@@ -66,8 +66,64 @@ const checkRole = (roles) => {
     };
 };
 
+// Department check middleware
+const checkDepartment = (departments) => {
+    return (req, res, next) => {
+        if (!req.user) {
+            return res.status(401).json({ message: 'Không có quyền truy cập' });
+        }
+
+        // Admin has access to all departments
+        if (req.user.role === 'admin') {
+            return next();
+        }
+
+        // Convert single department to array
+        const allowedDepartments = Array.isArray(departments) ? departments : [departments];
+
+        if (!allowedDepartments.includes(req.user.department)) {
+            return res.status(403).json({ 
+                message: 'Phòng ban của bạn không được phép thực hiện hành động này',
+                requiredDepartments: allowedDepartments
+            });
+        }
+
+        next();
+    };
+};
+
+// Combined department and role check middleware
+const checkDepartmentOrRole = (departments, roles) => {
+    return (req, res, next) => {
+        if (!req.user) {
+            return res.status(401).json({ message: 'Không có quyền truy cập' });
+        }
+
+        // Admin has all access
+        if (req.user.role === 'admin') {
+            return next();
+        }
+
+        const allowedDepartments = Array.isArray(departments) ? departments : [departments];
+        const allowedRoles = Array.isArray(roles) ? roles : [roles];
+
+        // Check if user's department or role is allowed
+        if (allowedDepartments.includes(req.user.department) || allowedRoles.includes(req.user.role)) {
+            return next();
+        }
+
+        return res.status(403).json({ 
+            message: 'Bạn không có quyền thực hiện hành động này',
+            requiredDepartments: allowedDepartments,
+            requiredRoles: allowedRoles
+        });
+    };
+};
+
 module.exports = {
     auth,
     checkPermission,
-    checkRole
+    checkRole,
+    checkDepartment,
+    checkDepartmentOrRole
 };

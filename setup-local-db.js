@@ -17,38 +17,112 @@ async function setupDatabase() {
         const User = require('./models/User');
         const CompanyData = require('./models/CompanyData');
 
-        // Check if admin user exists
-        const existingAdmin = await User.findOne({ email: 'admin@company.com' });
+        // Check if users exist
+        const existingUsers = await User.countDocuments();
         
-        if (!existingAdmin) {
-            console.log('👤 Creating default admin user...');
+        if (existingUsers === 0) {
+            console.log('👤 Creating sample users...');
             
-            // Create default admin user
-            const hashedPassword = await bcrypt.hash('admin123', 10);
-            const adminUser = new User({
-                email: 'admin@company.com',
-                password: hashedPassword,
-                name: 'System Administrator',
-                department: 'IT',
-                position: 'System Administrator',
-                role: 'admin',
-                permissions: [
-                    'view_company_docs',
-                    'edit_company_docs',
-                    'manage_users',
-                    'view_reports',
-                    'manage_meetings',
-                    'manage_tasks'
-                ],
-                isActive: true
-            });
+            const sampleUsers = [
+                {
+                    email: 'admin@company.com',
+                    password: await bcrypt.hash('admin123', 10),
+                    name: 'System Administrator',
+                    department: 'IT',
+                    position: 'System Administrator',
+                    role: 'admin',
+                    permissions: [
+                        'view_company_docs',
+                        'edit_company_docs',
+                        'manage_users',
+                        'view_reports',
+                        'manage_meetings',
+                        'manage_tasks'
+                    ],
+                    isActive: true
+                },
+                {
+                    email: 'it.manager@company.com',
+                    password: await bcrypt.hash('it123', 10),
+                    name: 'Nguyễn Văn IT',
+                    department: 'IT',
+                    position: 'IT Manager',
+                    role: 'manager',
+                    permissions: [
+                        'view_company_docs',
+                        'edit_company_docs',
+                        'manage_users',
+                        'view_reports',
+                        'manage_meetings'
+                    ],
+                    isActive: true
+                },
+                {
+                    email: 'operations.manager@company.com',
+                    password: await bcrypt.hash('ops123', 10),
+                    name: 'Trần Thị Operations',
+                    department: 'Operations',
+                    position: 'Operations Manager',
+                    role: 'manager',
+                    permissions: [
+                        'view_company_docs',
+                        'manage_users',
+                        'view_reports',
+                        'manage_meetings'
+                    ],
+                    isActive: true
+                },
+                {
+                    email: 'hr.employee@company.com',
+                    password: await bcrypt.hash('hr123', 10),
+                    name: 'Lê Văn HR',
+                    department: 'HR',
+                    position: 'HR Specialist',
+                    role: 'employee',
+                    permissions: [
+                        'view_company_docs',
+                        'view_reports'
+                    ],
+                    isActive: true
+                },
+                {
+                    email: 'finance.employee@company.com',
+                    password: await bcrypt.hash('finance123', 10),
+                    name: 'Phạm Thị Finance',
+                    department: 'Finance',
+                    position: 'Accountant',
+                    role: 'employee',
+                    permissions: [
+                        'view_company_docs',
+                        'view_reports'
+                    ],
+                    isActive: true
+                },
+                {
+                    email: 'sales.employee@company.com',
+                    password: await bcrypt.hash('sales123', 10),
+                    name: 'Hoàng Văn Sales',
+                    department: 'Sales',
+                    position: 'Sales Executive',
+                    role: 'employee',
+                    permissions: [
+                        'view_company_docs'
+                    ],
+                    isActive: true
+                }
+            ];
             
-            await adminUser.save();
-            console.log('✅ Admin user created successfully!');
-            console.log('📧 Email: admin@company.com');
-            console.log('🔑 Password: admin123');
+            await User.insertMany(sampleUsers);
+            console.log('✅ Sample users created successfully!');
+            console.log('\n📋 User Accounts:');
+            console.log('👑 Admin: admin@company.com / admin123');
+            console.log('🔧 IT Manager: it.manager@company.com / it123');
+            console.log('⚙️  Operations Manager: operations.manager@company.com / ops123');
+            console.log('👥 HR Employee: hr.employee@company.com / hr123');
+            console.log('💰 Finance Employee: finance.employee@company.com / finance123');
+            console.log('📈 Sales Employee: sales.employee@company.com / sales123');
         } else {
-            console.log('👤 Admin user already exists');
+            console.log('👤 Users already exist in database');
         }
 
         // Check if company data exists

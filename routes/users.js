@@ -2,32 +2,10 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
-const { auth } = require('../middleware/auth');
-
-// Middleware kiểm tra quyền IT hoặc admin
-const requireITOrAdmin = (req, res, next) => {
-    if (req.user.department !== 'IT' && req.user.role !== 'admin') {
-        return res.status(403).json({ 
-            success: false, 
-            message: 'Chỉ nhân viên IT hoặc admin mới có quyền truy cập thông tin này' 
-        });
-    }
-    next();
-};
-
-// Middleware kiểm tra quyền admin
-const requireAdmin = (req, res, next) => {
-    if (req.user.role !== 'admin') {
-        return res.status(403).json({ 
-            success: false, 
-            message: 'Chỉ admin mới có quyền thực hiện hành động này' 
-        });
-    }
-    next();
-};
+const { auth, checkRole, checkDepartment, checkDepartmentOrRole } = require('../middleware/auth');
 
 // GET /api/users - Lấy danh sách tất cả users với phân trang và lọc
-router.get('/', auth, requireITOrAdmin, async (req, res) => {
+router.get('/', auth, checkDepartmentOrRole(['IT', 'Operations'], ['admin', 'manager']), async (req, res) => {
     try {
         const { 
             page = 1, 
@@ -87,7 +65,7 @@ router.get('/', auth, requireITOrAdmin, async (req, res) => {
 });
 
 // GET /api/users/:id - Lấy thông tin chi tiết một user
-router.get('/:id', auth, requireITOrAdmin, async (req, res) => {
+router.get('/:id', auth, checkDepartmentOrRole(['IT', 'Operations'], ['admin', 'manager']), async (req, res) => {
     try {
         const user = await User.findById(req.params.id, '-password -passwordResetAttempts')
             .populate('suspendedBy', 'name email');
@@ -113,7 +91,7 @@ router.get('/:id', auth, requireITOrAdmin, async (req, res) => {
 });
 
 // PUT /api/users/:id/status - Cập nhật trạng thái user (chỉ admin)
-router.put('/:id/status', auth, requireAdmin, async (req, res) => {
+router.put('/:id/status', auth, checkRole('admin'), async (req, res) => {
     try {
         const { isActive } = req.body;
         
@@ -152,8 +130,8 @@ router.put('/:id/status', auth, requireAdmin, async (req, res) => {
     }
 });
 
-// POST /api/users/:id/suspend - Đình chỉ tài khoản user
-router.post('/:id/suspend', auth, requireAdmin, async (req, res) => {
+// POST /api/users/:id/suspend - Đình chỉ tài khoản user (IT, Operations hoặc admin)
+router.post('/:id/suspend', auth, checkDepartmentOrRole(['IT', 'Operations'], 'admin'), async (req, res) => {
     try {
         const { reason, endDate } = req.body;
         
@@ -199,8 +177,8 @@ router.post('/:id/suspend', auth, requireAdmin, async (req, res) => {
     }
 });
 
-// POST /api/users/:id/unsuspend - Bỏ đình chỉ tài khoản user
-router.post('/:id/unsuspend', auth, requireAdmin, async (req, res) => {
+// POST /api/users/:id/unsuspend - Bỏ đình chỉ tài khoản user (IT, Operations hoặc admin)
+router.post('/:id/unsuspend', auth, checkDepartmentOrRole(['IT', 'Operations'], 'admin'), async (req, res) => {
     try {
         const user = await User.findById(req.params.id);
         if (!user) {
@@ -233,8 +211,8 @@ router.post('/:id/unsuspend', auth, requireAdmin, async (req, res) => {
     }
 });
 
-// PUT /api/users/:id/password - Đổi mật khẩu cho user (admin)
-router.put('/:id/password', auth, requireAdmin, async (req, res) => {
+// PUT /api/users/:id/password - Đổi mật khẩu cho user (IT, Operations hoặc admin)
+router.put('/:id/password', auth, checkDepartmentOrRole(['IT', 'Operations'], 'admin'), async (req, res) => {
     try {
         const { newPassword } = req.body;
         
@@ -318,7 +296,7 @@ router.put('/profile/password', auth, async (req, res) => {
 });
 
 // PUT /api/users/:id - Cập nhật thông tin user
-router.put('/:id', auth, requireITOrAdmin, async (req, res) => {
+router.put('/:id', auth, checkDepartmentOrRole(['IT'], 'admin'), async (req, res) => {
     try {
         const { name, department, position, role, permissions } = req.body;
         
@@ -365,7 +343,7 @@ router.put('/:id', auth, requireITOrAdmin, async (req, res) => {
 });
 
 // GET /api/users/stats/dashboard - Thống kê dashboard cho admin
-router.get('/stats/dashboard', auth, requireAdmin, async (req, res) => {
+router.get('/stats/dashboard', auth, checkRole('admin'), async (req, res) => {
     try {
         const totalUsers = await User.countDocuments();
         const activeUsers = await User.countDocuments({ isActive: true });
