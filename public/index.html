@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trợ Lý Ảo - Công ty Khải Đỗ</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="/css/styles.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 dark:bg-gray-900">
+    <!-- Login Form -->
+    <div id="loginForm" class="min-h-screen flex items-center justify-center">
+        <div class="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg w-96">
+            <div class="flex justify-center space-x-4 mb-6">
+                <button id="showLoginBtn" class="text-blue-600 font-medium pb-2 border-b-2 border-blue-600">Đăng Nhập</button>
+                <button id="showRegisterBtn" class="text-gray-500 font-medium pb-2 border-b-2 border-transparent">Đăng Ký</button>
+            </div>
+
+            <form id="login" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
+                    <input type="email" id="loginEmail" required 
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Mật khẩu</label>
+                    <input type="password" id="loginPassword" required 
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <button type="submit" 
+                        class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Đăng nhập
+                </button>
+            </form>
+
+            <form id="register" class="space-y-4 hidden">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
+                    <input type="email" id="registerEmail" name="email" required 
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Mật khẩu</label>
+                    <input type="password" id="registerPassword" name="password" required 
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Họ và tên</label>
+                    <input type="text" id="registerName" name="name" required 
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Phòng ban</label>
+                    <select id="registerDepartment" name="department" required 
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        <option value="" disabled selected>Chọn phòng ban</option>
+                        <option value="IT">IT</option>
+                        <option value="HR">HR</option>
+                        <option value="Finance">Finance</option>
+                        <option value="Sales">Sales</option>
+                        <option value="Marketing">Marketing</option>
+                        <option value="Operations">Operations</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Vị trí</label>
+                    <input type="text" id="registerPosition" name="position" required 
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <button type="submit" 
+                        class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Đăng ký
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="app" class="hidden min-h-screen">
+        <!-- Header -->
+        <header class="bg-white dark:bg-gray-800 shadow">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center">
+                        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Trợ Lý Ảo - Công ty Khải Đỗ</h1>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <span id="userInfo" class="text-sm text-gray-700 dark:text-gray-300"></span>
+                        <button id="logout" class="text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300">
+                            Đăng xuất
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <!-- Sidebar -->
+                <div class="md:col-span-1">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
+                        <nav class="space-y-2">
+                            <button class="nav-btn w-full text-left px-4 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700" data-section="chat">
+                                💬 Trò chuyện
+                            </button>
+                            <button class="nav-btn w-full text-left px-4 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700" data-section="documents">
+                                📄 Tài liệu
+                            </button>
+                            <button class="nav-btn w-full text-left px-4 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700" data-section="meetings">
+                                📅 Cuộc họp
+                            </button>
+                            <button class="nav-btn w-full text-left px-4 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700" data-section="tasks">
+                                ✅ Công việc
+                            </button>
+                        </nav>
+                    </div>
+
+                    <!-- Chat History Sidebar (only visible in chat section) -->
+                    <div id="chatHistorySidebar" class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Lịch sử chat</h3>
+                            <button id="newChatBtn" class="px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700">
+                                Chat mới
+                            </button>
+                        </div>
+                        <div id="chatHistoryList" class="space-y-2 max-h-[calc(100vh-12rem)] overflow-y-auto custom-scrollbar">
+                            <!-- Chat history items will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Content Area -->
+                <div class="md:col-span-3">
+                    <!-- Chat Section -->
+                    <div id="chatSection" class="section-content bg-white dark:bg-gray-800 rounded-lg shadow">
+                        <div class="h-[600px] flex flex-col">
+                            <div id="chatMessages" class="flex-1 p-4 space-y-4 overflow-y-auto custom-scrollbar">
+                                <!-- Messages will be inserted here -->
+                            </div>
+                            <div class="border-t dark:border-gray-700 p-4">
+                                <form id="chatForm" class="flex space-x-4">
+                                    <div class="flex-1 flex items-center space-x-2">
+                                        <input type="text" id="messageInput" 
+                                               class="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                               placeholder="Nhập tin nhắn...">
+                                        <button type="button" id="micButton"
+                                                class="p-2 rounded-full bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    <button type="submit" 
+                                            class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                        Gửi
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Documents Section -->
+                    <div id="documentsSection" class="section-content hidden">
+                        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                            <div class="flex justify-between items-center mb-6">
+                                <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Tài liệu công ty</h2>
+                                <div class="flex space-x-4">
+                                    <input type="text" id="documentSearch" 
+                                           class="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                           placeholder="Tìm kiếm tài liệu...">
+                                    <button id="addDocument" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                                        Thêm mới
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="documentsList" class="space-y-4">
+                                <!-- Documents will be listed here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Meetings Section -->
+                    <div id="meetingsSection" class="section-content hidden">
+                        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                            <div class="flex justify-between items-center mb-6">
+                                <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Lịch họp</h2>
+                                <button id="addMeeting" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                                    Tạo cuộc họp
+                                </button>
+                            </div>
+                            <div id="meetingsList" class="space-y-4">
+                                <!-- Meetings will be listed here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tasks Section -->
+                    <div id="tasksSection" class="section-content hidden">
+                        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                            <div class="flex justify-between items-center mb-6">
+                                <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Công việc</h2>
+                                <button id="addTask" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                                    Thêm công việc
+                                </button>
+                            </div>
+                            <div id="tasksList" class="space-y-4">
+                                <!-- Tasks will be listed here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,353 @@
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e0;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a0aec0;
+}
+
+/* Dark mode scrollbar */
+.dark ::-webkit-scrollbar-thumb {
+    background: #4a5568;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+    background: #2d3748;
+}
+
+/* Custom scrollbar class for specific elements */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #cbd5e0;
+    border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+    background: #1e293b;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #475569;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+}
+
+/* Chat messages animations */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#chatMessages > div {
+    animation: slideIn 0.3s ease-out;
+}
+
+/* Message bubbles */
+.message-bubble {
+    position: relative;
+    margin-bottom: 1rem;
+}
+
+.message-bubble::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    width: 0;
+    height: 0;
+    border: 8px solid transparent;
+}
+
+.message-bubble.user::after {
+    right: -8px;
+    border-left-color: #2563eb;
+}
+
+.message-bubble.assistant::after {
+    left: -8px;
+    border-right-color: #e5e7eb;
+}
+
+.dark .message-bubble.assistant::after {
+    border-right-color: #374151;
+}
+
+/* Input focus styles */
+input:focus, textarea:focus {
+    outline: none;
+    --tw-ring-color: #3b82f6;
+    --tw-ring-offset-color: #ffffff;
+}
+
+.dark input:focus, .dark textarea:focus {
+    --tw-ring-offset-color: #1f2937;
+}
+
+/* Button hover effects */
+button {
+    transition: all 0.2s ease-in-out;
+}
+
+button:hover {
+    transform: translateY(-1px);
+}
+
+button:active {
+    transform: translateY(0);
+}
+
+/* Navigation button active state */
+.nav-btn.active {
+    background-color: #e5e7eb;
+    color: #1f2937;
+}
+
+.dark .nav-btn.active {
+    background-color: #374151;
+    color: #f3f4f6;
+}
+
+/* Card hover effects */
+.document-card {
+    transition: all 0.2s ease-in-out;
+}
+
+.document-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Loading spinner */
+.loading {
+    display: inline-block;
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 50%;
+    border-top-color: #3b82f6;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Toast notifications */
+.toast {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    background-color: #ffffff;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    z-index: 50;
+    animation: slideUp 0.3s ease-out;
+}
+
+.dark .toast {
+    background-color: #1f2937;
+    color: #f3f4f6;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(1rem);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Status badges */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.status-badge.success {
+    background-color: #dcfce7;
+    color: #166534;
+}
+
+.status-badge.warning {
+    background-color: #fef9c3;
+    color: #854d0e;
+}
+
+.status-badge.error {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.dark .status-badge.success {
+    background-color: #065f46;
+    color: #dcfce7;
+}
+
+.dark .status-badge.warning {
+    background-color: #854d0e;
+    color: #fef9c3;
+}
+
+.dark .status-badge.error {
+    background-color: #991b1b;
+    color: #fee2e2;
+}
+
+/* Form elements */
+.form-input {
+    width: 100%;
+    padding: 0.5rem;
+    border-radius: 0.375rem;
+    border: 1px solid #e5e7eb;
+    background-color: #ffffff;
+    color: #1f2937;
+    transition: all 0.2s ease-in-out;
+}
+
+.dark .form-input {
+    background-color: #374151;
+    border-color: #4b5563;
+    color: #f3f4f6;
+}
+
+.form-input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+}
+
+/* Responsive design adjustments */
+@media (max-width: 640px) {
+    .container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    .chat-container {
+        height: calc(100vh - 12rem);
+    }
+
+    .nav-sidebar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background-color: #ffffff;
+        border-top: 1px solid #e5e7eb;
+        padding: 0.5rem;
+        z-index: 40;
+    }
+
+    .dark .nav-sidebar {
+        background-color: #1f2937;
+        border-color: #374151;
+    }
+}
+
+/* Accessibility improvements */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+.focus-visible:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+}
+
+/* Chat history sidebar - only show in chat section */
+#chatHistorySidebar {
+    display: none;
+}
+
+.chat-section-active #chatHistorySidebar {
+    display: block;
+}
+
+/* Chat history item styles */
+.chat-history-item {
+    transition: all 0.2s ease-in-out;
+    cursor: pointer;
+}
+
+.chat-history-item:hover {
+    background-color: #f3f4f6;
+    transform: translateX(2px);
+}
+
+.dark .chat-history-item:hover {
+    background-color: #374151;
+}
+
+.chat-history-item.active {
+    background-color: #dbeafe;
+    border-left: 3px solid #3b82f6;
+}
+
+.dark .chat-history-item.active {
+    background-color: #1e3a8a;
+}
+
+/* Print styles */
+@media print {
+    .no-print {
+        display: none !important;
+    }
+
+    .print-break-inside {
+        break-inside: avoid;
+    }
+
+    .print-break-before {
+        break-before: page;
+    }
+}
+
+/* New styles for chat messages container to have fixed height and scroll */
+#chatMessages {
+    height: calc(100vh - 12rem);
+    overflow-y: auto;
+}

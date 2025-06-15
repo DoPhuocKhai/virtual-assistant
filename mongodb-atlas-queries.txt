@@ -1,0 +1,94 @@
+// MongoDB Atlas Queries for Task Collection
+
+// 1. Tìm tất cả các task đang pending
+db.tasks.find({
+    status: "pending"
+})
+
+// 2. Tìm task theo department và sắp xếp theo dueDate
+db.tasks.find({
+    department: "IT"
+}).sort({
+    dueDate: 1
+})
+
+// 3. Tìm các task urgent và chưa hoàn thành
+db.tasks.find({
+    priority: "urgent",
+    status: { $in: ["pending", "in_progress"] }
+})
+
+// 4. Thống kê số task theo status
+db.tasks.aggregate([
+    {
+        $group: {
+            _id: "$status",
+            count: { $sum: 1 }
+        }
+    }
+])
+
+// 5. Tìm task có progress > 50% nhưng chưa hoàn thành
+db.tasks.find({
+    progress: { $gt: 50 },
+    status: { $ne: "completed" }
+})
+
+// 6. Thống kê số task theo department và status
+db.tasks.aggregate([
+    {
+        $group: {
+            _id: {
+                department: "$department",
+                status: "$status"
+            },
+            count: { $sum: 1 }
+        }
+    }
+])
+
+// 7. Tìm các task quá hạn
+db.tasks.find({
+    dueDate: { $lt: new Date() },
+    status: { $in: ["pending", "in_progress"] }
+})
+
+// 8. Tìm task có nhiều comment nhất
+db.tasks.aggregate([
+    {
+        $project: {
+            title: 1,
+            commentCount: { $size: "$comments" }
+        }
+    },
+    { $sort: { commentCount: -1 } },
+    { $limit: 1 }
+])
+
+// 9. Thống kê số task theo priority cho mỗi department
+db.tasks.aggregate([
+    {
+        $group: {
+            _id: {
+                department: "$department",
+                priority: "$priority"
+            },
+            count: { $sum: 1 }
+        }
+    }
+])
+
+// 10. Tìm các task được tạo trong 7 ngày gần đây
+db.tasks.find({
+    createdAt: {
+        $gte: new Date(new Date().setDate(new Date().getDate() - 7))
+    }
+})
+
+// Cách sử dụng trong MongoDB Atlas:
+// 1. Đăng nhập vào MongoDB Atlas
+// 2. Chọn Database -> Browse Collections
+// 3. Chọn collection "tasks"
+// 4. Click vào "Aggregation" hoặc "Find" tùy vào loại query
+// 5. Copy và paste query mong muốn vào
+// 6. Click "Run" để thực thi query
