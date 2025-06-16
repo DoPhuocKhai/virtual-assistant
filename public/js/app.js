@@ -215,6 +215,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const MESSAGE_LIMIT = 10;
     let recognition = null;
 
+    // Helper function to format timestamps
+    function formatTimestamp(date) {
+        const now = new Date();
+        const diff = now - date;
+        const seconds = Math.floor(diff / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        const days = Math.floor(hours / 24);
+
+        if (days > 7) {
+            return date.toLocaleDateString('vi-VN');
+        } else if (days > 0) {
+            return `${days} ngày trước`;
+        } else if (hours > 0) {
+            return `${hours} giờ trước`;
+        } else if (minutes > 0) {
+            return `${minutes} phút trước`;
+        } else {
+            return 'Vừa xong';
+        }
+    }
+
     function initializeChat() {
         const chatForm = document.getElementById('chatForm');
         const messageInput = document.getElementById('messageInput');
@@ -222,9 +244,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const newChatBtn = document.getElementById('newChatBtn');
         const sendButton = document.getElementById('sendButton');
         const micButton = document.getElementById('micButton');
+        const chatContainer = document.getElementById('chatContainer');
 
-        // Initialize speech recognition
-        if ('webkitSpeechRecognition' in window) {
+        // Show loading state
+        chatMessages.innerHTML = `
+            <div class="flex items-center justify-center h-full">
+                <div class="text-center p-4">
+                    <div class="flex justify-center space-x-2 mb-4">
+                        <div class="w-3 h-3 bg-blue-600 rounded-full animate-bounce"></div>
+                        <div class="w-3 h-3 bg-blue-600 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                        <div class="w-3 h-3 bg-blue-600 rounded-full animate-bounce" style="animation-delay: 0.4s"></div>
+                    </div>
+                    <p class="text-gray-500">Đang tải cuộc trò chuyện...</p>
+                </div>
+            </div>
+        `;
+
+        // Disable inputs while loading
+        if (messageInput) messageInput.disabled = true;
+        if (sendButton) sendButton.disabled = true;
+        if (newChatBtn) newChatBtn.disabled = true;
+
+        // Initialize speech recognition if available
+        if ('webkitSpeechRecognition' in window && micButton) {
             recognition = new webkitSpeechRecognition();
             recognition.continuous = false;
             recognition.interimResults = false;
@@ -264,12 +306,39 @@ document.addEventListener('DOMContentLoaded', () => {
             micButton.style.display = 'none';
         }
         
-        // Load active chat on initialization
-        loadActiveChat();
+        // Initialize chat state
+        const initializeState = async () => {
+            try {
+                await loadActiveChat();
+                await loadChatHistory();
+            } catch (error) {
+                console.error('Error initializing chat:', error);
+                // Show error message to user
+                const chatMessages = document.getElementById('chatMessages');
+                chatMessages.innerHTML = `
+                    <div class="text-center p-4 text-gray-500">
+                        <p>Không thể tải tin nhắn. Vui lòng thử lại.</p>
+                        <button onclick="window.location.reload()" class="mt-2 px-4 py-2 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-200">
+                            Tải lại
+                        </button>
+                    </div>
+                `;
+            }
+        };
+
+        // Initialize chat state
+        initializeState();
         
         // New chat button
         if (newChatBtn) {
-            newChatBtn.addEventListener('click', createNewChat);
+            newChatBtn.addEventListener('click', async () => {
+                try {
+                    await createNewChat();
+                } catch (error) {
+                    console.error('Error creating new chat:', error);
+                    alert('Không thể tạo cuộc trò chuyện mới. Vui lòng thử lại.');
+                }
+            });
         }
         
         // Company question buttons - wait for DOM to be ready
@@ -303,16 +372,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 sendButton.textContent = 'Đang gửi...';
             }
 
+            // Get current timestamp
+            const timestamp = new Date();
+
             // Add user message to chat
-            addMessageToChat('user', message);
+            addMessageToChat('user', message, timestamp);
             messageInput.value = '';
             
             // Update message count
             messageCount++;
             updateMessageCounter();
 
+            // Show loading indicator
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'flex justify-start mb-4';
+            loadingDiv.innerHTML = `
+                <div class="flex flex-col max-w-xs lg:max-w-2xl">
+                    <div class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white mr-auto rounded-r-lg rounded-bl-lg shadow-sm">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
+                            <div class="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                            <div class="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style="animation-delay: 0.4s"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            chatMessages.appendChild(loadingDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
             // Send message to server
-            fetch('/api/assistant/message', {
+            fetch('/api/assistant/chat', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -322,15 +411,28 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(response => response.json())
             .then(data => {
-                addMessageToChat('assistant', data.response);
-                currentChatId = data.chat._id;
+                if (data.response) {
+                    addMessageToChat('assistant', data.response);
+                }
+                if (data.chat) {
+                    currentChatId = data.chat._id;
+                    // Update message count based on actual messages
+                    messageCount = data.chat.messages.filter(msg => msg.sender === 'user').length;
+                    updateMessageCounter();
+                }
                 loadChatHistory(); // Refresh chat history
             })
             .catch(error => {
                 console.error('Chat error:', error);
-                addMessageToChat('assistant', 'Có lỗi xảy ra khi kết nối với trợ lý.');
+                // Remove loading indicator
+                loadingDiv.remove();
+                // Show error message
+                addMessageToChat('assistant', 'Có lỗi xảy ra khi kết nối với trợ lý. Vui lòng thử lại sau.', new Date());
             })
             .finally(() => {
+                // Remove loading indicator
+                loadingDiv.remove();
+                
                 // Re-enable send button
                 if (sendButton) {
                     sendButton.disabled = false;
@@ -345,6 +447,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     messageInput.placeholder = 'Đã đạt giới hạn tin nhắn. Tạo cuộc trò chuyện mới để tiếp tục.';
                 }
+
+                // Scroll to bottom
+                chatMessages.scrollTop = chatMessages.scrollHeight;
             });
         }
         
@@ -394,6 +499,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadActiveChat() {
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const newChatBtn = document.getElementById('newChatBtn');
+        const chatMessages = document.getElementById('chatMessages');
+
         try {
             const response = await fetch('/api/assistant/active', {
                 headers: {
@@ -403,15 +513,77 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (response.ok) {
                 const data = await response.json();
-                currentChatId = data.chat._id;
-                displayChatMessages(data.chat.messages);
+                if (data.chat) {
+                    currentChatId = data.chat._id;
+                    // Reset message count based on existing messages
+                    messageCount = data.chat.messages.filter(msg => msg.sender === 'user').length;
+                    updateMessageCounter();
+                    displayChatMessages(data.chat.messages);
+                    
+                    // Enable/disable input based on message count
+                    if (messageCount >= MESSAGE_LIMIT) {
+                        if (messageInput) {
+                            messageInput.disabled = true;
+                            messageInput.placeholder = 'Đã đạt giới hạn tin nhắn. Tạo cuộc trò chuyện mới để tiếp tục.';
+                        }
+                        if (sendButton) sendButton.disabled = true;
+                    } else {
+                        if (messageInput) {
+                            messageInput.disabled = false;
+                            messageInput.placeholder = 'Nhập tin nhắn...';
+                        }
+                        if (sendButton) sendButton.disabled = false;
+                    }
+                } else {
+                    await createNewChat();
+                }
+            } else {
+                throw new Error('Failed to load active chat');
             }
         } catch (error) {
             console.error('Error loading active chat:', error);
+            chatMessages.innerHTML = `
+                <div class="flex items-center justify-center h-full">
+                    <div class="text-center p-4">
+                        <p class="text-gray-500 mb-4">Không thể tải cuộc trò chuyện. Vui lòng thử lại.</p>
+                        <button onclick="window.location.reload()" 
+                                class="px-4 py-2 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-200">
+                            Tải lại
+                        </button>
+                    </div>
+                </div>
+            `;
+        } finally {
+            // Always re-enable the new chat button
+            if (newChatBtn) newChatBtn.disabled = false;
         }
     }
 
     async function createNewChat() {
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const newChatBtn = document.getElementById('newChatBtn');
+        const chatMessages = document.getElementById('chatMessages');
+
+        // Show loading state
+        chatMessages.innerHTML = `
+            <div class="flex items-center justify-center h-full">
+                <div class="text-center p-4">
+                    <div class="flex justify-center space-x-2 mb-4">
+                        <div class="w-3 h-3 bg-blue-600 rounded-full animate-bounce"></div>
+                        <div class="w-3 h-3 bg-blue-600 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                        <div class="w-3 h-3 bg-blue-600 rounded-full animate-bounce" style="animation-delay: 0.4s"></div>
+                    </div>
+                    <p class="text-gray-500">Đang tạo cuộc trò chuyện mới...</p>
+                </div>
+            </div>
+        `;
+
+        // Disable inputs while creating
+        if (messageInput) messageInput.disabled = true;
+        if (sendButton) sendButton.disabled = true;
+        if (newChatBtn) newChatBtn.disabled = true;
+
         try {
             const response = await fetch('/api/assistant/new', {
                 method: 'POST',
@@ -424,25 +596,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await response.json();
                 currentChatId = data.chat._id;
                 
-                // Clear current chat messages
-                const chatMessages = document.getElementById('chatMessages');
-                chatMessages.innerHTML = '';
-                
-                // Reset message count and re-enable input
+                // Reset message count
                 messageCount = 0;
                 updateMessageCounter();
                 
-                const messageInput = document.getElementById('messageInput');
-                const sendButton = document.getElementById('sendButton');
-                messageInput.disabled = false;
-                sendButton.disabled = false;
-                messageInput.placeholder = 'Nhập tin nhắn...';
+                // Display welcome message
+                displayChatMessages(data.chat.messages);
+                
+                // Enable inputs
+                if (messageInput) {
+                    messageInput.disabled = false;
+                    messageInput.placeholder = 'Nhập tin nhắn...';
+                    messageInput.focus();
+                }
+                if (sendButton) sendButton.disabled = false;
                 
                 // Refresh chat history
-                loadChatHistory();
+                await loadChatHistory();
+            } else {
+                throw new Error('Failed to create new chat');
             }
         } catch (error) {
             console.error('Error creating new chat:', error);
+            chatMessages.innerHTML = `
+                <div class="flex items-center justify-center h-full">
+                    <div class="text-center p-4">
+                        <p class="text-gray-500 mb-4">Không thể tạo cuộc trò chuyện mới. Vui lòng thử lại.</p>
+                        <button onclick="createNewChat()" 
+                                class="px-4 py-2 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-200">
+                            Thử lại
+                        </button>
+                    </div>
+                </div>
+            `;
+        } finally {
+            // Always re-enable the new chat button
+            if (newChatBtn) newChatBtn.disabled = false;
         }
     }
 
@@ -469,14 +658,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         messages.forEach(message => {
-            addMessageToChat(message.sender, message.content, false);
+            addMessageToChat(message.sender, message.content, message.timestamp);
         });
+        
+        // Scroll to bottom after loading messages
+        chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
-    function addMessageToChat(sender, message) {
+    function addMessageToChat(sender, message, timestamp = new Date()) {
         const chatMessages = document.getElementById('chatMessages');
         const messageDiv = document.createElement('div');
-        messageDiv.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
+        messageDiv.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'} mb-4`;
         
         const speakButtonHtml = sender === 'assistant' ? `
             <button class="speak-btn ml-2 p-1 text-gray-500 hover:text-blue-600 transition-colors" 
@@ -486,18 +678,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 </svg>
             </button>
         ` : '';
+
+        const bubbleClass = sender === 'user' 
+            ? 'bg-blue-600 text-white ml-auto rounded-l-lg rounded-br-lg' 
+            : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white mr-auto rounded-r-lg rounded-bl-lg';
         
         messageDiv.innerHTML = `
-            <div class="max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                sender === 'user' 
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
-            }">
-                <div class="flex items-start justify-between">
-                    <p class="text-sm flex-1">${message}</p>
-                    ${speakButtonHtml}
+            <div class="flex flex-col max-w-xs lg:max-w-2xl">
+                <div class="px-4 py-2 ${bubbleClass} shadow-sm">
+                    <div class="flex items-start justify-between">
+                        <p class="text-sm flex-1 whitespace-pre-wrap">${message}</p>
+                        ${speakButtonHtml}
+                    </div>
                 </div>
-                <p class="text-xs mt-1 opacity-70">${new Date().toLocaleTimeString()}</p>
+                <span class="text-xs text-gray-500 dark:text-gray-400 mt-1 ${
+                    sender === 'user' ? 'text-right' : 'text-left'
+                }">${formatTimestamp(new Date(timestamp))}</span>
             </div>
         `;
         
@@ -506,6 +702,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadChatHistory() {
+        const chatHistoryList = document.getElementById('chatHistoryList');
+        
+        // Show loading state
+        chatHistoryList.innerHTML = `
+            <div class="p-4">
+                <div class="flex justify-center space-x-2 mb-2">
+                    <div class="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
+                    <div class="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                    <div class="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style="animation-delay: 0.4s"></div>
+                </div>
+                <p class="text-sm text-center text-gray-500">Đang tải lịch sử...</p>
+            </div>
+        `;
+
         try {
             const response = await fetch('/api/assistant/history', {
                 headers: {
@@ -516,11 +726,20 @@ document.addEventListener('DOMContentLoaded', () => {
             if (response.ok) {
                 const data = await response.json();
                 displayChatHistory(data.chats);
+            } else {
+                throw new Error('Failed to load chat history');
             }
         } catch (error) {
             console.error('Error loading chat history:', error);
-            const chatHistoryList = document.getElementById('chatHistoryList');
-            chatHistoryList.innerHTML = '<p class="text-sm text-gray-500">Lỗi khi tải lịch sử chat</p>';
+            chatHistoryList.innerHTML = `
+                <div class="p-4 text-center">
+                    <p class="text-sm text-gray-500 mb-2">Lỗi khi tải lịch sử chat</p>
+                    <button onclick="loadChatHistory()" 
+                            class="text-sm px-3 py-1 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-200">
+                        Thử lại
+                    </button>
+                </div>
+            `;
         }
     }
 
@@ -533,12 +752,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         chatHistoryList.innerHTML = chats.map(chat => {
-            // Get last message for preview
+            // Get first and last message for title and preview
+            const firstMessage = chat.messages[0];
             const lastMessage = chat.messages[chat.messages.length - 1];
+            
+            // Generate title from first assistant message or use default
+            const title = chat.title || (firstMessage && firstMessage.sender === 'assistant' ? 
+                (firstMessage.content.length > 50 ? firstMessage.content.substring(0, 50) + '...' : firstMessage.content) : 
+                'Cuộc trò chuyện mới');
+            
+            // Create preview from last message
             const lastMessagePreview = lastMessage ? 
                 `<p class="text-xs text-gray-600 dark:text-gray-300 mt-1 truncate">
                     ${lastMessage.sender === 'user' ? 'Bạn: ' : 'Trợ lý: '}${lastMessage.content}
                 </p>` : '';
+
+            // Format timestamp
+            const timestamp = lastMessage ? new Date(lastMessage.timestamp) : new Date(chat.createdAt);
+            const timeString = formatTimestamp(timestamp);
 
             return `
                 <div class="chat-history-item p-3 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 ${
@@ -546,11 +777,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }" data-chat-id="${chat._id}">
                     <div class="flex justify-between items-start">
                         <h4 class="text-sm font-medium text-gray-900 dark:text-white truncate flex-1">
-                            ${chat.title}
+                            ${title}
                         </h4>
                         <div class="flex items-center space-x-2">
                             <span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                                ${new Date(chat.lastMessageAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                                ${timeString}
                             </span>
                             <button class="delete-chat-btn text-xs text-red-600 hover:text-red-800" data-chat-id="${chat._id}">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -615,6 +846,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function resumeChat(chatId) {
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const chatMessages = document.getElementById('chatMessages');
+
+        // Show loading state
+        chatMessages.innerHTML = `
+            <div class="flex items-center justify-center h-full">
+                <div class="text-center p-4">
+                    <div class="flex justify-center space-x-2 mb-4">
+                        <div class="w-3 h-3 bg-blue-600 rounded-full animate-bounce"></div>
+                        <div class="w-3 h-3 bg-blue-600 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                        <div class="w-3 h-3 bg-blue-600 rounded-full animate-bounce" style="animation-delay: 0.4s"></div>
+                    </div>
+                    <p class="text-gray-500">Đang tải cuộc trò chuyện...</p>
+                </div>
+            </div>
+        `;
+
+        // Disable inputs while loading
+        if (messageInput) messageInput.disabled = true;
+        if (sendButton) sendButton.disabled = true;
+
         try {
             const response = await fetch(`/api/assistant/resume/${chatId}`, {
                 method: 'POST',
@@ -626,11 +879,42 @@ document.addEventListener('DOMContentLoaded', () => {
             if (response.ok) {
                 const data = await response.json();
                 currentChatId = data.chat._id;
+                
+                // Reset message count based on chat messages
+                messageCount = data.chat.messages.filter(msg => msg.sender === 'user').length;
+                updateMessageCounter();
+                
+                // Display messages
                 displayChatMessages(data.chat.messages);
-                loadChatHistory(); // Refresh to update active state
+                
+                // Enable/disable inputs based on message count
+                if (messageInput) {
+                    messageInput.disabled = messageCount >= MESSAGE_LIMIT;
+                    messageInput.placeholder = messageCount >= MESSAGE_LIMIT ? 
+                        'Đã đạt giới hạn tin nhắn. Tạo cuộc trò chuyện mới để tiếp tục.' : 
+                        'Nhập tin nhắn...';
+                    if (!messageInput.disabled) messageInput.focus();
+                }
+                if (sendButton) sendButton.disabled = messageCount >= MESSAGE_LIMIT;
+                
+                // Refresh chat history to update active state
+                await loadChatHistory();
+            } else {
+                throw new Error('Failed to resume chat');
             }
         } catch (error) {
             console.error('Error resuming chat:', error);
+            chatMessages.innerHTML = `
+                <div class="flex items-center justify-center h-full">
+                    <div class="text-center p-4">
+                        <p class="text-gray-500 mb-4">Không thể tải cuộc trò chuyện. Vui lòng thử lại.</p>
+                        <button onclick="resumeChat('${chatId}')" 
+                                class="px-4 py-2 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-200">
+                            Thử lại
+                        </button>
+                    </div>
+                </div>
+            `;
         }
     }
 
