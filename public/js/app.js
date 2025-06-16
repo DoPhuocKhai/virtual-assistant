@@ -245,6 +245,37 @@
         const sendButton = document.getElementById('sendButton');
         const micButton = document.getElementById('micButton');
         const chatContainer = document.getElementById('chatContainer');
+        const errorContainer = document.createElement('div');
+        errorContainer.className = 'fixed bottom-4 right-4 max-w-sm';
+        document.body.appendChild(errorContainer);
+
+        // Error handling function
+        function showError(message, duration = 5000) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-2';
+            errorDiv.innerHTML = `
+                <span class="block sm:inline">${message}</span>
+                <span class="absolute top-0 bottom-0 right-0 px-4 py-3">
+                    <svg class="fill-current h-6 w-6 text-red-500" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                        <title>Close</title>
+                        <path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z"/>
+                    </svg>
+                </span>
+            `;
+            errorContainer.appendChild(errorDiv);
+
+            // Add click handler to close button
+            errorDiv.querySelector('svg').addEventListener('click', () => {
+                errorDiv.remove();
+            });
+
+            // Auto-remove after duration
+            setTimeout(() => {
+                if (errorDiv.parentNode === errorContainer) {
+                    errorDiv.remove();
+                }
+            }, duration);
+        }
 
         // Show loading state
         chatMessages.innerHTML = `
@@ -409,19 +440,39 @@
             chatMessages.appendChild(loadingDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
 
-            // Send message to server
-            fetch('/api/assistant/chat', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
-                body: JSON.stringify({ 
-                    message,
-                    chatId: currentChatId 
-                })
-            })
-            .then(response => response.json())
+            // Send message to server with retry logic
+            const sendWithRetry = async (retries = 3) => {
+                for (let i = 0; i < retries; i++) {
+                    try {
+                        const response = await fetch('/api/assistant/chat', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                            },
+                            body: JSON.stringify({ 
+                                message,
+                                chatId: currentChatId 
+                            })
+                        });
+
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            throw new Error(errorData.message || 'Server error');
+                        }
+
+                        return await response.json();
+                    } catch (error) {
+                        console.error(`Attempt ${i + 1} failed:`, error);
+                        if (i === retries - 1) {
+                            throw error;
+                        }
+                        await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+                    }
+                }
+            };
+
+            sendWithRetry()
             .then(data => {
                 if (data.response) {
                     addMessageToChat('assistant', data.response);
