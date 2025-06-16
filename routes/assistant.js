@@ -375,67 +375,47 @@ router.post('/chat', auth, async (req, res) => {
         // Save chat to database
         let chat;
         try {
-            if (chatId) {
-                // Update existing chat
+            // Find existing chat or create new one
+            if (req.body.chatId) {
                 chat = await AssistantChat.findOne({ 
-                    _id: new mongoose.Types.ObjectId(chatId), 
+                    _id: new mongoose.Types.ObjectId(req.body.chatId), 
                     userId: new mongoose.Types.ObjectId(req.user.id) 
                 });
-                
-                if (!chat) {
-                    return res.status(404).json({
-                        error: 'Chat not found',
-                        message: 'Could not find chat session'
-                    });
-                }
+            }
 
-                if (message) {
-                    // Add user message and assistant response
-                    chat.messages.push(
-                        { 
-                            content: message, 
-                            sender: 'user',
-                            timestamp: new Date()
-                        },
-                        { 
-                            content: response, 
-                            sender: 'assistant',
-                            timestamp: new Date()
-                        }
-                    );
-                    await chat.save();
-                }
-            } else {
-                // Create new chat
-                const messages = [];
-                if (message) {
-                    messages.push(
-                        { 
-                            content: message, 
-                            sender: 'user',
-                            timestamp: new Date()
-                        },
-                        { 
-                            content: response, 
-                            sender: 'assistant',
-                            timestamp: new Date()
-                        }
-                    );
-                } else {
-                    // For welcome message, only add assistant response
-                    messages.push({ 
+            if (!chat) {
+                // Create new chat if not found or no chatId provided
+                chat = new AssistantChat({
+                    userId: new mongoose.Types.ObjectId(req.user.id),
+                    messages: []
+                });
+            }
+
+            // Add messages
+            if (message) {
+                chat.messages.push(
+                    { 
+                        content: message, 
+                        sender: 'user',
+                        timestamp: new Date()
+                    },
+                    { 
                         content: response, 
                         sender: 'assistant',
                         timestamp: new Date()
-                    });
-                }
-                
-                chat = new AssistantChat({
-                    userId: new mongoose.Types.ObjectId(req.user.id),
-                    messages: messages
+                    }
+                );
+            } else {
+                // For welcome message, only add assistant response
+                chat.messages.push({ 
+                    content: response, 
+                    sender: 'assistant',
+                    timestamp: new Date()
                 });
-                await chat.save();
             }
+
+            // Save chat
+            await chat.save();
 
             // Return response with chat context
             res.json({ 
