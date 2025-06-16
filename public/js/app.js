@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', () => {
+ document.addEventListener('DOMContentLoaded', () => {
     // Check if user is already logged in
     const token = localStorage.getItem('token');
     if (token) {
@@ -309,7 +309,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Initialize chat state
         const initializeState = async () => {
             try {
-                await loadActiveChat();
+                // Create new chat if no active chat exists
+                const activeChat = await loadActiveChat();
+                if (!activeChat) {
+                    await createNewChat();
+                }
                 await loadChatHistory();
             } catch (error) {
                 console.error('Error initializing chat:', error);
@@ -318,7 +322,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 chatMessages.innerHTML = `
                     <div class="text-center p-4 text-gray-500">
                         <p>Không thể tải tin nhắn. Vui lòng thử lại.</p>
-                        <button onclick="window.location.reload()" class="mt-2 px-4 py-2 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-200">
+                        <button onclick="initializeState()" class="mt-2 px-4 py-2 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-200">
                             Tải lại
                         </button>
                     </div>
@@ -326,7 +330,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        // Initialize chat state
+        // Initialize chat state when chat section is shown
+        document.querySelector('[data-section="chat"]').addEventListener('click', () => {
+            initializeState();
+        });
+
+        // Also initialize on first load
         initializeState();
         
         // New chat button
@@ -407,7 +416,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 },
-                body: JSON.stringify({ message })
+                body: JSON.stringify({ 
+                    message,
+                    chatId: currentChatId 
+                })
             })
             .then(response => response.json())
             .then(data => {
@@ -534,31 +546,30 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         if (sendButton) sendButton.disabled = false;
                     }
-                } else {
-                    await createNewChat();
+
+                    // Re-enable the new chat button
+                    if (newChatBtn) newChatBtn.disabled = false;
+
+                    return data.chat; // Return the active chat
                 }
-            } else {
-                throw new Error('Failed to load active chat');
             }
+            return null; // Return null if no active chat found
         } catch (error) {
             console.error('Error loading active chat:', error);
             chatMessages.innerHTML = `
                 <div class="flex items-center justify-center h-full">
                     <div class="text-center p-4">
                         <p class="text-gray-500 mb-4">Không thể tải cuộc trò chuyện. Vui lòng thử lại.</p>
-                        <button onclick="window.location.reload()" 
+                        <button onclick="initializeState()" 
                                 class="px-4 py-2 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-200">
                             Tải lại
                         </button>
                     </div>
                 </div>
             `;
-        } finally {
-            // Always re-enable the new chat button
-            if (newChatBtn) newChatBtn.disabled = false;
+            return null;
         }
     }
-
     async function createNewChat() {
         const messageInput = document.getElementById('messageInput');
         const sendButton = document.getElementById('sendButton');
@@ -846,9 +857,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function resumeChat(chatId) {
+        if (!chatId) return;
+
         const messageInput = document.getElementById('messageInput');
         const sendButton = document.getElementById('sendButton');
         const chatMessages = document.getElementById('chatMessages');
+        const newChatBtn = document.getElementById('newChatBtn');
 
         // Show loading state
         chatMessages.innerHTML = `
@@ -864,9 +878,10 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
 
-        // Disable inputs while loading
+        // Disable all inputs while loading
         if (messageInput) messageInput.disabled = true;
         if (sendButton) sendButton.disabled = true;
+        if (newChatBtn) newChatBtn.disabled = true;
 
         try {
             const response = await fetch(`/api/assistant/resume/${chatId}`, {
@@ -876,45 +891,53 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            if (response.ok) {
-                const data = await response.json();
-                currentChatId = data.chat._id;
-                
-                // Reset message count based on chat messages
-                messageCount = data.chat.messages.filter(msg => msg.sender === 'user').length;
-                updateMessageCounter();
-                
-                // Display messages
-                displayChatMessages(data.chat.messages);
-                
-                // Enable/disable inputs based on message count
-                if (messageInput) {
-                    messageInput.disabled = messageCount >= MESSAGE_LIMIT;
-                    messageInput.placeholder = messageCount >= MESSAGE_LIMIT ? 
-                        'Đã đạt giới hạn tin nhắn. Tạo cuộc trò chuyện mới để tiếp tục.' : 
-                        'Nhập tin nhắn...';
-                    if (!messageInput.disabled) messageInput.focus();
-                }
-                if (sendButton) sendButton.disabled = messageCount >= MESSAGE_LIMIT;
-                
-                // Refresh chat history to update active state
-                await loadChatHistory();
-            } else {
+            if (!response.ok) {
                 throw new Error('Failed to resume chat');
             }
+
+            const data = await response.json();
+            if (!data.chat) {
+                throw new Error('No chat data received');
+            }
+
+            currentChatId = data.chat._id;
+            
+            // Reset message count based on chat messages
+            messageCount = data.chat.messages.filter(msg => msg.sender === 'user').length;
+            updateMessageCounter();
+            
+            // Display messages
+            displayChatMessages(data.chat.messages);
+            
+            // Enable/disable inputs based on message count
+            if (messageInput) {
+                messageInput.disabled = messageCount >= MESSAGE_LIMIT;
+                messageInput.placeholder = messageCount >= MESSAGE_LIMIT ? 
+                    'Đã đạt giới hạn tin nhắn. Tạo cuộc trò chuyện mới để tiếp tục.' : 
+                    'Nhập tin nhắn...';
+                if (!messageInput.disabled) messageInput.focus();
+            }
+            if (sendButton) sendButton.disabled = messageCount >= MESSAGE_LIMIT;
+            
+            // Refresh chat history to update active state
+            await loadChatHistory();
+
         } catch (error) {
             console.error('Error resuming chat:', error);
             chatMessages.innerHTML = `
                 <div class="flex items-center justify-center h-full">
                     <div class="text-center p-4">
                         <p class="text-gray-500 mb-4">Không thể tải cuộc trò chuyện. Vui lòng thử lại.</p>
-                        <button onclick="resumeChat('${chatId}')" 
+                        <button onclick="initializeState()" 
                                 class="px-4 py-2 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-200">
-                            Thử lại
+                            Tải lại
                         </button>
                     </div>
                 </div>
             `;
+        } finally {
+            // Always re-enable the new chat button
+            if (newChatBtn) newChatBtn.disabled = false;
         }
     }
 
