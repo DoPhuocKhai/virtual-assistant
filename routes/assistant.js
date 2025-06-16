@@ -52,10 +52,10 @@ async function prepareCompanyContext(user) {
 
     return {
         userContext: {
-            name: user.name,
-            role: user.role,
-            department: user.department,
-            position: user.position
+            name: user.name || 'Chưa cập nhật',
+            role: user.role || 'Chưa cập nhật',
+            department: user.department || 'Chưa cập nhật',
+            position: user.position || 'Chưa cập nhật'
         },
         documents: accessibleDocs.map(doc => ({
             id: doc._id,
@@ -204,10 +204,10 @@ router.post('/chat', auth, async (req, res) => {
                 // Chuẩn bị system message với context của công ty
                 const systemMessage = `Bạn là trợ lý ảo của công ty VNG. 
                 Thông tin người dùng hiện tại:
-                - Tên: ${companyContext.userContext.name}
-                - Vị trí: ${companyContext.userContext.position}
-                - Phòng ban: ${companyContext.userContext.department}
-                - Vai trò: ${companyContext.userContext.role}
+                - Tên: ${companyContext.userContext.name || 'Chưa cập nhật'}
+                - Vị trí: ${companyContext.userContext.position || 'Chưa cập nhật'}
+                - Phòng ban: ${companyContext.userContext.department || 'Chưa cập nhật'}
+                - Vai trò: ${companyContext.userContext.role || 'Chưa cập nhật'}
 
                 Bạn có quyền truy cập vào:
                 - ${companyContext.documents.length} tài liệu công ty
