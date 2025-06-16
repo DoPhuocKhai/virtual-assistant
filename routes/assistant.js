@@ -11,6 +11,8 @@ const mongoose = require('mongoose');
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
+const Mailbox = require('../models/Mailbox');
+
 // Context preparation function
 async function prepareCompanyContext(user) {
     // Lấy các tài liệu có thể truy cập
@@ -25,6 +27,29 @@ async function prepareCompanyContext(user) {
         status: { $in: ['pending', 'in_progress'] }
     }).sort({ dueDate: 1 });
 
+    // Lấy hộp thư của người dùng
+    let mailbox = await Mailbox.findOne({ owner: user.id });
+    if (!mailbox) {
+        mailbox = new Mailbox({
+            owner: user.id,
+            messages: [],
+            unreadCount: 0,
+            labels: [
+                { name: 'urgent', color: '#ff4444' },
+                { name: 'important', color: '#ff8800' },
+                { name: 'follow-up', color: '#0088ff' },
+                { name: 'personal', color: '#44ff44' },
+                { name: 'work', color: '#8844ff' }
+            ]
+        });
+        await mailbox.save();
+    }
+
+    // Lấy chat history
+    const chatHistory = await AssistantChat.find({ userId: user.id })
+        .sort({ createdAt: -1 })
+        .limit(5);
+
     return {
         userContext: {
             name: user.name,
@@ -33,21 +58,138 @@ async function prepareCompanyContext(user) {
             position: user.position
         },
         documents: accessibleDocs.map(doc => ({
+            id: doc._id,
             title: doc.title,
             category: doc.category,
             content: doc.content,
             tags: doc.tags
         })),
         meetings: upcomingMeetings,
-        tasks: activeTasks
+        tasks: activeTasks,
+        mailbox: {
+            unreadCount: mailbox.unreadCount,
+            messages: mailbox.messages.slice(0, 10).map(msg => ({
+                id: msg._id,
+                type: msg.type,
+                title: msg.title,
+                content: msg.content,
+                isRead: msg.isRead,
+                labels: msg.labels,
+                createdAt: msg.createdAt
+            }))
+        },
+        chatHistory: chatHistory.map(chat => ({
+            id: chat._id,
+            messages: chat.messages
+        }))
     };
+}
+
+// Helper function to handle mailbox operations
+async function handleMailboxOperation(user, operation, messageData) {
+    let mailbox = await Mailbox.findOne({ owner: user.id });
+    if (!mailbox) {
+        return null;
+    }
+
+    switch (operation) {
+        case 'add':
+            await mailbox.addMessage(messageData);
+            break;
+        case 'delete':
+            if (messageData.messageId) {
+                mailbox.messages.pull(messageData.messageId);
+                await mailbox.save();
+            }
+            break;
+        case 'markRead':
+            if (messageData.messageId) {
+                await mailbox.markAsRead(messageData.messageId);
+            }
+            break;
+    }
+    return mailbox;
+}
+
+// Helper function to handle meeting operations
+async function handleMeetingOperation(user, operation, meetingData) {
+    switch (operation) {
+        case 'schedule':
+            const meeting = new Meeting({
+                title: meetingData.title,
+                description: meetingData.description,
+                organizer: user.id,
+                participants: meetingData.participants.map(id => ({ user: id })),
+                startTime: new Date(meetingData.startTime),
+                endTime: new Date(meetingData.endTime),
+                location: meetingData.location,
+                meetingType: meetingData.meetingType,
+                onlineMeetingLink: meetingData.onlineMeetingLink,
+                agenda: meetingData.agenda || []
+            });
+            await meeting.save();
+            await meeting.sendNotifications();
+            return meeting;
+
+        case 'cancel':
+            const existingMeeting = await Meeting.findById(meetingData.meetingId);
+            if (existingMeeting && 
+                (existingMeeting.organizer.toString() === user.id.toString() || 
+                user.department === 'Operations')) {
+                existingMeeting.status = 'cancelled';
+                await existingMeeting.save();
+                return existingMeeting;
+            }
+            return null;
+
+        case 'getCalendar':
+            const { year, month } = meetingData;
+            const startDate = new Date(year, month - 1, 1);
+            const endDate = new Date(year, month, 0, 23, 59, 59);
+            
+            return await Meeting.find({
+                startTime: { $gte: startDate, $lte: endDate },
+                $or: [
+                    { organizer: user.id },
+                    { 'participants.user': user.id }
+                ]
+            }).sort({ startTime: 1 });
+    }
+    return null;
 }
 
 // Xử lý chat với trợ lý ảo
 router.post('/chat', auth, async (req, res) => {
     try {
-        const { message, chatId } = req.body;
+        const { message, chatId, action } = req.body;
         let response;
+
+        // Handle specific actions if provided
+        if (action) {
+            switch (action.type) {
+                case 'mailbox':
+                    const mailboxResult = await handleMailboxOperation(req.user, action.operation, action.data);
+                    if (mailboxResult) {
+                        return res.json({ 
+                            success: true, 
+                            message: `Thao tác ${action.operation} hộp thư thành công`,
+                            data: mailboxResult
+                        });
+                    }
+                    break;
+
+                case 'meeting':
+                    const meetingResult = await handleMeetingOperation(req.user, action.operation, action.data);
+                    if (meetingResult) {
+                        return res.json({ 
+                            success: true, 
+                            message: `Thao tác ${action.operation} cuộc họp thành công`,
+                            data: meetingResult
+                        });
+                    }
+                    break;
+            }
+        }
 
         // Set initial response
         response = message 
@@ -71,6 +213,14 @@ router.post('/chat', auth, async (req, res) => {
                 - ${companyContext.documents.length} tài liệu công ty
                 - ${companyContext.meetings.length} cuộc họp sắp tới
                 - ${companyContext.tasks.length} công việc đang thực hiện
+                - ${companyContext.mailbox.messages.length} tin nhắn trong hộp thư (${companyContext.mailbox.unreadCount} chưa đọc)
+                - ${companyContext.chatHistory.length} cuộc hội thoại gần đây
+
+                Bạn có thể:
+                - Đọc và trả lời tin nhắn trong hộp thư
+                - Tạo, hủy cuộc họp và quản lý lịch
+                - Tìm kiếm và truy cập tài liệu
+                - Xem lịch sử chat
 
                 Hãy trả lời dựa trên ngữ cảnh công ty và quyền truy cập của người dùng.`;
 
@@ -80,7 +230,7 @@ router.post('/chat', auth, async (req, res) => {
                 const geminiResponse = await result.response;
                 response = geminiResponse.text();
 
-                // Nếu câu hỏi liên quan đến tài liệu
+                // Xử lý yêu cầu liên quan đến tài liệu
                 if (message.toLowerCase().includes('tài liệu') || 
                     message.toLowerCase().includes('hướng dẫn') ||
                     message.toLowerCase().includes('chính sách')) {
@@ -93,31 +243,116 @@ router.post('/chat', auth, async (req, res) => {
 
                     if (relevantDocs.length > 0) {
                         response += '\n\nTài liệu liên quan:\n' + relevantDocs.map(doc => 
-                            `- ${doc.title} (${doc.category})`
+                            `- ${doc.title} (${doc.category})\n  ID: ${doc.id}`
                         ).join('\n');
                     }
                 }
 
-                // Nếu câu hỏi liên quan đến lịch họp
+                // Xử lý yêu cầu liên quan đến lịch họp
                 if (message.toLowerCase().includes('họp') || 
                     message.toLowerCase().includes('cuộc họp') ||
                     message.toLowerCase().includes('lịch')) {
                     
-                    if (companyContext.meetings.length > 0) {
+                    // Kiểm tra nếu là yêu cầu tạo cuộc họp mới
+                    if (message.toLowerCase().includes('tạo') || 
+                        message.toLowerCase().includes('đặt') ||
+                        message.toLowerCase().includes('lên lịch')) {
+                        
+                        // Extract meeting details from message using Gemini
+                        const meetingPrompt = `Extract meeting details from: "${message}"
+                        Required fields:
+                        - title
+                        - description
+                        - startTime (YYYY-MM-DD HH:mm)
+                        - endTime (YYYY-MM-DD HH:mm)
+                        - location
+                        - meetingType (in-person/online/hybrid)
+                        Format as JSON`;
+                        
+                        const meetingResult = await model.generateContent(meetingPrompt);
+                        const meetingDetails = JSON.parse(meetingResult.response.text());
+                        
+                        if (meetingDetails) {
+                            const meeting = await handleMeetingOperation(req.user, 'schedule', meetingDetails);
+                            if (meeting) {
+                                response += `\n\nĐã tạo cuộc họp mới:\n- ${meeting.title}\n- Thời gian: ${new Date(meeting.startTime).toLocaleString()} - ${new Date(meeting.endTime).toLocaleString()}\n- Địa điểm: ${meeting.location}`;
+                            }
+                        }
+                    }
+                    // Kiểm tra nếu là yêu cầu hủy cuộc họp
+                    else if (message.toLowerCase().includes('hủy') || 
+                             message.toLowerCase().includes('xóa')) {
+                        
+                        const meetingToCancel = companyContext.meetings.find(m => 
+                            message.toLowerCase().includes(m.title.toLowerCase())
+                        );
+                        
+                        if (meetingToCancel) {
+                            const cancelled = await handleMeetingOperation(req.user, 'cancel', { meetingId: meetingToCancel.id });
+                            if (cancelled) {
+                                response += `\n\nĐã hủy cuộc họp: ${meetingToCancel.title}`;
+                            }
+                        }
+                    }
+                    // Hiển thị lịch họp
+                    else if (companyContext.meetings.length > 0) {
                         response += '\n\nCuộc họp sắp tới:\n' + companyContext.meetings.map(meeting =>
-                            `- ${meeting.title} (${new Date(meeting.startTime).toLocaleString()})`
+                            `- ${meeting.title} (${new Date(meeting.startTime).toLocaleString()})\n  ID: ${meeting._id}`
                         ).join('\n');
                     }
                 }
 
-                // Nếu câu hỏi liên quan đến công việc
+                // Xử lý yêu cầu liên quan đến hộp thư
+                if (message.toLowerCase().includes('thư') || 
+                    message.toLowerCase().includes('mail') ||
+                    message.toLowerCase().includes('tin nhắn')) {
+                    
+                    const mailbox = companyContext.mailbox;
+                    
+                    // Kiểm tra nếu là yêu cầu xem tin nhắn
+                    if (message.toLowerCase().includes('xem') || 
+                        message.toLowerCase().includes('đọc')) {
+                        
+                        if (mailbox.messages.length > 0) {
+                            response += '\n\nTin nhắn trong hộp thư:\n' + mailbox.messages.map(msg =>
+                                `- ${msg.title} (${msg.isRead ? 'Đã đọc' : 'Chưa đọc'})\n  ID: ${msg.id}`
+                            ).join('\n');
+                        }
+                    }
+                    // Kiểm tra nếu là yêu cầu xóa tin nhắn
+                    else if (message.toLowerCase().includes('xóa')) {
+                        const messageToDelete = mailbox.messages.find(m => 
+                            message.toLowerCase().includes(m.title.toLowerCase())
+                        );
+                        
+                        if (messageToDelete) {
+                            const result = await handleMailboxOperation(req.user, 'delete', { messageId: messageToDelete.id });
+                            if (result) {
+                                response += `\n\nĐã xóa tin nhắn: ${messageToDelete.title}`;
+                            }
+                        }
+                    }
+                }
+
+                // Xử lý yêu cầu liên quan đến công việc
                 if (message.toLowerCase().includes('công việc') || 
                     message.toLowerCase().includes('task') ||
                     message.toLowerCase().includes('nhiệm vụ')) {
                     
                     if (companyContext.tasks.length > 0) {
                         response += '\n\nCông việc đang thực hiện:\n' + companyContext.tasks.map(task =>
-                            `- ${task.title} (${task.status}, due: ${new Date(task.dueDate).toLocaleDateString()})`
+                            `- ${task.title} (${task.status}, due: ${new Date(task.dueDate).toLocaleDateString()})\n  ID: ${task._id}`
+                        ).join('\n');
+                    }
+                }
+
+                // Xử lý yêu cầu xem lịch sử chat
+                if (message.toLowerCase().includes('lịch sử') && 
+                    message.toLowerCase().includes('chat')) {
+                    
+                    if (companyContext.chatHistory.length > 0) {
+                        response += '\n\nLịch sử chat gần đây:\n' + companyContext.chatHistory.map(chat =>
+                            `- Chat ID: ${chat.id}\n  Số tin nhắn: ${chat.messages.length}`
                         ).join('\n');
                     }
                 }
@@ -128,7 +363,7 @@ router.post('/chat', auth, async (req, res) => {
             }
         }
 
-        // For now, just return the response without saving to database for testing
+        // Validate user
         if (!req.user || !req.user.id) {
             console.error('User ID is missing:', req.user);
             return res.status(400).json({
@@ -137,45 +372,84 @@ router.post('/chat', auth, async (req, res) => {
             });
         }
 
-        // Lưu tin nhắn vào database
+        // Save chat to database
         let chat;
-        if (chatId) {
-            // Cập nhật chat hiện có
-            chat = await AssistantChat.findOne({ 
-                _id: new mongoose.Types.ObjectId(chatId), 
-                userId: new mongoose.Types.ObjectId(req.user.id) 
-            });
-            if (chat && message) {
-                chat.messages.push(
-                    { content: message, sender: 'user' },
-                    { content: response, sender: 'assistant' }
-                );
+        try {
+            if (chatId) {
+                // Update existing chat
+                chat = await AssistantChat.findOne({ 
+                    _id: new mongoose.Types.ObjectId(chatId), 
+                    userId: new mongoose.Types.ObjectId(req.user.id) 
+                });
+                
+                if (!chat) {
+                    return res.status(404).json({
+                        error: 'Chat not found',
+                        message: 'Could not find chat session'
+                    });
+                }
+
+                if (message) {
+                    // Add user message and assistant response
+                    chat.messages.push(
+                        { 
+                            content: message, 
+                            sender: 'user',
+                            timestamp: new Date()
+                        },
+                        { 
+                            content: response, 
+                            sender: 'assistant',
+                            timestamp: new Date()
+                        }
+                    );
+                    await chat.save();
+                }
+            } else {
+                // Create new chat
+                const messages = [];
+                if (message) {
+                    messages.push(
+                        { 
+                            content: message, 
+                            sender: 'user',
+                            timestamp: new Date()
+                        },
+                        { 
+                            content: response, 
+                            sender: 'assistant',
+                            timestamp: new Date()
+                        }
+                    );
+                } else {
+                    // For welcome message, only add assistant response
+                    messages.push({ 
+                        content: response, 
+                        sender: 'assistant',
+                        timestamp: new Date()
+                    });
+                }
+                
+                chat = new AssistantChat({
+                    userId: new mongoose.Types.ObjectId(req.user.id),
+                    messages: messages
+                });
                 await chat.save();
             }
-        } else {
-            // Tạo chat mới
-            const messages = [];
-            if (message) {
-                messages.push(
-                    { content: message, sender: 'user' },
-                    { content: response, sender: 'assistant' }
-                );
-            } else {
-                // For welcome message, only add assistant response
-                messages.push({ content: response, sender: 'assistant' });
-            }
-            
-            chat = new AssistantChat({
-                userId: new mongoose.Types.ObjectId(req.user.id),
-                messages: messages
-            });
-            await chat.save();
-        }
 
-        res.json({ 
-            response,
-            chatId: chat._id
-        });
+            // Return response with chat context
+            res.json({ 
+                response,
+                chatId: chat._id,
+                messages: chat.messages
+            });
+        } catch (dbError) {
+            console.error('Database Error:', dbError);
+            return res.status(500).json({
+                error: 'Database error',
+                message: 'Could not save chat messages'
+            });
+        }
     } catch (error) {
         console.error('Assistant Error:', error);
         res.status(500).json({
