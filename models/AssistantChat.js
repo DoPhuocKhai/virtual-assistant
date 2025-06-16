@@ -6,6 +6,21 @@ const assistantChatSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
+    title: {
+        type: String,
+        default: function() {
+            // Generate title from first message if available
+            if (this.messages && this.messages.length > 0) {
+                const firstMsg = this.messages[0].content;
+                return firstMsg.length > 50 ? firstMsg.substring(0, 50) + '...' : firstMsg;
+            }
+            return 'Cuộc trò chuyện mới';
+        }
+    },
+    isActive: {
+        type: Boolean,
+        default: false
+    },
     messages: [{
         content: {
             type: String,

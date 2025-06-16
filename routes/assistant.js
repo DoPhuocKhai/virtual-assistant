@@ -194,7 +194,7 @@ router.post('/chat', auth, async (req, res) => {
         // Set initial response
         response = message 
             ? undefined  // Will be set by Gemini API
-            : "Xin chào, Trợ lý ảo công ty Khải Đỗ có thể giúp gì cho bạn?";
+            : "Xin chào, Trợ lý ảo công ty VNG có thể giúp gì cho bạn?";
 
         // Only call Gemini API if there's a message
         if (message) {
@@ -202,7 +202,7 @@ router.post('/chat', auth, async (req, res) => {
                 const companyContext = await prepareCompanyContext(req.user);
 
                 // Chuẩn bị system message với context của công ty
-                const systemMessage = `Bạn là trợ lý ảo của công ty Khải Đỗ. 
+                const systemMessage = `Bạn là trợ lý ảo của công ty VNG. 
                 Thông tin người dùng hiện tại:
                 - Tên: ${companyContext.userContext.name}
                 - Vị trí: ${companyContext.userContext.position}
@@ -454,6 +454,123 @@ router.post('/chat', auth, async (req, res) => {
         console.error('Assistant Error:', error);
         res.status(500).json({
             error: 'Không thể xử lý yêu cầu',
+            message: error.message
+        });
+    }
+});
+
+// Get active chat
+router.get('/active', auth, async (req, res) => {
+    try {
+        const activeChat = await AssistantChat.findOne({ 
+            userId: req.user.id 
+        }).sort({ createdAt: -1 });
+
+        if (!activeChat) {
+            return res.status(404).json({ 
+                message: 'Không tìm thấy cuộc trò chuyện hiện hành' 
+            });
+        }
+
+        res.json({ chat: activeChat });
+    } catch (error) {
+        console.error('Error fetching active chat:', error);
+        res.status(500).json({ 
+            error: 'Lỗi máy chủ khi lấy cuộc trò chuyện hiện hành' 
+        });
+    }
+});
+
+// Get chat history
+router.get('/history', auth, async (req, res) => {
+    try {
+        const chats = await AssistantChat.find({ 
+            userId: req.user.id 
+        }).sort({ createdAt: -1 });
+
+        res.json({ chats });
+    } catch (error) {
+        console.error('Error fetching chat history:', error);
+        res.status(500).json({ 
+            error: 'Lỗi máy chủ khi lấy lịch sử chat' 
+        });
+    }
+});
+
+// Resume chat
+router.post('/resume/:chatId', auth, async (req, res) => {
+    try {
+        const chat = await AssistantChat.findOne({
+            _id: req.params.chatId,
+            userId: req.user.id
+        });
+
+        if (!chat) {
+            return res.status(404).json({
+                error: 'Chat not found',
+                message: 'Could not find chat session'
+            });
+        }
+
+        // Mark this chat as active
+        chat.isActive = true;
+        await chat.save();
+
+        res.json({ chat });
+    } catch (error) {
+        console.error('Error resuming chat:', error);
+        res.status(500).json({
+            error: 'Could not resume chat',
+            message: error.message
+        });
+    }
+});
+
+// Create new chat
+router.post('/new', auth, async (req, res) => {
+    try {
+        // Create new chat with welcome message
+        const chat = new AssistantChat({
+            userId: req.user.id,
+            messages: [{
+                content: "Xin chào, Trợ lý ảo công ty VNG có thể giúp gì cho bạn?",
+                sender: 'assistant',
+                timestamp: new Date()
+            }],
+            isActive: true
+        });
+
+        await chat.save();
+        res.json({ chat });
+    } catch (error) {
+        console.error('Error creating new chat:', error);
+        res.status(500).json({
+            error: 'Could not create new chat',
+            message: error.message
+        });
+    }
+});
+
+// Delete chat
+router.delete('/chat/:chatId', auth, async (req, res) => {
+    try {
+        const result = await AssistantChat.deleteOne({
+            _id: req.params.chatId,
+            userId: req.user.id
+        });
+
+        if (result.deletedCount === 0) {
+            return res.status(404).json({
+                error: 'Chat not found',
+                message: 'Could not find chat to delete'
+            });
+        }
+
+        res.json({ message: 'Chat deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting chat:', error);
+        res.status(500).json({
+            error: 'Could not delete chat',
             message: error.message
         });
     }
