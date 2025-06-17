@@ -588,7 +588,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     for (let i = 0; i < retries; i++) {
                         try {
-                            const response = await fetch('/api/assistant/chat', {
+                            const response = await fetch('/api/assistant/message', {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',

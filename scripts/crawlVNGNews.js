@@ -18,7 +18,8 @@ const vngNewsUrls = [
     'https://vietnamnet.vn/vng-don-nhan-bang-khen-doanh-nghiep-tieu-bieu-2017-i354317.html',
     'https://nhandan.vn/zalo-cua-bo-y-te-gui-hon-35-ty-thong-bao-ve-covid-19-den-nguoi-dan-post607756.html',
     'https://www.qdnd.vn/xa-hoi/tin-tuc/zalo-nhan-giay-khen-tu-giam-doc-cong-an-tp-ho-chi-minh-725289',
-    'https://nguoidothi.net.vn/zalo-duoc-trao-bang-khen-vi-dong-gop-xuat-sac-trong-ho-tro-hoat-dong-chuyen-doi-so-46447.html'
+    'https://nguoidothi.net.vn/zalo-duoc-trao-bang-khen-vi-dong-gop-xuat-sac-trong-ho-tro-hoat-dong-chuyen-doi-so-46447.html',
+    'https://vnggames.com/vn/vi'
 ];
 
 async function crawlAndUpdateVNGData() {
@@ -86,13 +87,17 @@ ${compiledData.recentNews}
 ${compiledData.fullContent}
         `;
         
-        companyData.content = enhancedContent;
-        companyData.lastUpdated = new Date();
-        companyData.newsLastCrawled = new Date();
-        
+        // Update all company data fields
+        Object.assign(companyData, {
+            content: enhancedContent,
+            sourceUrl: 'https://www.vng.com.vn/',
+            lastUpdated: new Date(),
+            newsLastCrawled: new Date()
+        });
+
         // Save the updated data
         await companyData.save();
-        
+
         console.log('Successfully updated VNG company data with news information');
         console.log(`Total content length: ${enhancedContent.length} characters`);
         
@@ -107,12 +112,13 @@ ${compiledData.fullContent}
             }
             console.log('');
         });
+
+        // Return the updated company data
+        return companyData;
         
     } catch (error) {
         console.error('Error crawling VNG news:', error);
-    } finally {
-        await mongoose.disconnect();
-        console.log('Disconnected from MongoDB');
+        throw error; // Re-throw to handle in the chat route
     }
 }
 

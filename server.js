@@ -18,8 +18,8 @@ app.use(express.static('public'));
 
 // Initialize Google Generative AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-// Get the Gemini-1.5-flash model
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+// Get the Gemini-2.0-flash model
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 // Local MongoDB connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/virtual-assistant';

@@ -1,0 +1,50 @@
+require('dotenv').config();
+const { crawlAndSaveToMongo } = require('../utils/crawlToMongo');
+
+const VNG_NEWS_URLS = [
+    // Major Vietnamese news sites covering VNG
+    'https://cafef.vn/vng-quy-i-2025-doanh-thu-2232-ty-dong-loi-nhuan-tang-vot-188250506191738327.chn',
+    'https://vneconomy.vn/loi-nhuan-giam-75-vi-sao-vng-van-duoc-dinh-gia-1-ty-usd.htm',
+    'https://vietnamnet.vn/vng-chinh-thuc-ky-ban-ghi-nho-niem-yet-co-phieu-tren-san-nasdaq-i354343.html',
+    'https://vtv.vn/cong-nghe/vng-chinh-thuc-khai-truong-tru-so-moi-rong-hon-52000m2-20191113103238453.htm',
+    'https://vneconomy.vn/vng-duoc-quy-dau-tu-temasek-dinh-gia-toi-22-ty-usd.htm',
+    'https://cafef.vn/co-phieu-vnz-dat-nhat-lich-su-chung-khoan-viet-nam-vng-can-moc-von-hoa-ty-usd-20230210143054239.chn',
+    'https://thanhnien.vn/vng-greennode-hop-tac-nvidia-khai-truong-trung-tam-du-lieu-ai-cloud-tai-thai-lan-185240625112329667.htm',
+    'https://baodautu.vn/vng-xay-dung-data-center-lon-nhat-viet-nam-ban-dich-vu-cloud-ra-the-gioi-d215258.html',
+    'https://tienphong.vn/vng-nhan-bang-khen-cua-ubnd-tphcm-post618222.tpo',
+    'https://vietnamnet.vn/vng-don-nhan-bang-khen-doanh-nghiep-tieu-bieu-2017-i354317.html'
+];
+
+async function updateVNGData() {
+    console.log('Starting VNG data update...');
+    
+    try {
+        // Crawl and save articles
+        const savedArticles = await crawlAndSaveToMongo(VNG_NEWS_URLS);
+        console.log(`Successfully processed ${savedArticles.length} articles`);
+
+        // Log details of saved articles
+        savedArticles.forEach(article => {
+            console.log(`- ${article.title} (${article.category})`);
+        });
+
+    } catch (error) {
+        console.error('Error updating VNG data:', error);
+        process.exit(1);
+    }
+}
+
+// Run if called directly
+if (require.main === module) {
+    updateVNGData()
+        .then(() => {
+            console.log('VNG data update completed successfully');
+            process.exit(0);
+        })
+        .catch(error => {
+            console.error('Failed to update VNG data:', error);
+            process.exit(1);
+        });
+}
+
+module.exports = updateVNGData;

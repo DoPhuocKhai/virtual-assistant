@@ -1,10 +1,16 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const Chat = require('../models/Chat');
 const Document = require('../models/Document');
+const CompanyData = require('../models/CompanyData');
 const CalendarQueries = require('../utils/calendarQueries');
 const { auth } = require('../middleware/auth');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+
+// Initialize crawlers
+const newsCrawler = require('../utils/newsCrawler');
+const wikiCrawler = require('../utils/wikiCrawler');
 
 // Helper function to handle calendar-related requests
 async function handleCalendarRequest(message, userId, companyContext) {
@@ -73,9 +79,38 @@ Vui lòng chọn thời gian khác.`;
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
+// Initialize MongoDB connection
+let dbConnection = null;
+
+async function getDbConnection() {
+    if (!dbConnection || !mongoose.connection.readyState) {
+        dbConnection = await mongoose.connect(process.env.MONGODB_URI, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true
+        });
+        console.log('Connected to MongoDB Atlas');
+    }
+    return dbConnection;
+}
+
+// Handle graceful shutdown
+process.on('SIGINT', async () => {
+    try {
+        if (dbConnection) {
+            await mongoose.connection.close();
+            console.log('MongoDB connection closed through app termination');
+        }
+        process.exit(0);
+    } catch (err) {
+        console.error('Error during shutdown:', err);
+        process.exit(1);
+    }
+});
+
 // Get chat history
 router.get('/history', auth, async (req, res) => {
     try {
+        await getDbConnection();
         const chats = await Chat.getUserChats(req.user.id);
         res.json({ chats });
     } catch (error) {
@@ -87,6 +122,7 @@ router.get('/history', auth, async (req, res) => {
 // Get active chat or create new one
 router.get('/active', auth, async (req, res) => {
     try {
+        await getDbConnection();
         const chat = await Chat.getOrCreateActiveChat(req.user.id);
         res.json({ chat });
     } catch (error) {
@@ -98,6 +134,8 @@ router.get('/active', auth, async (req, res) => {
 // Create new chat session
 router.post('/new', auth, async (req, res) => {
     try {
+        await getDbConnection();
+        
         // Mark all existing chats as inactive
         await Chat.updateMany(
             { user: req.user.id, isActive: true },
@@ -126,6 +164,9 @@ router.post('/message', auth, async (req, res) => {
             return res.status(400).json({ message: 'Tin nhắn không được để trống' });
         }
 
+        // Initialize database connection
+        await getDbConnection();
+
         // Get or create active chat
         let chat = await Chat.getOrCreateActiveChat(req.user.id);
         
@@ -134,71 +175,85 @@ router.post('/message', auth, async (req, res) => {
         
         // Process with Gemini AI
         let aiResponse;
+        let companyData = null;
         try {
-            // Search for relevant company documents
-            let relevantDocuments = [];
+            // Fetch VNG-specific documents and context
+            let documentContext = '';
             try {
-                // Build query for user's accessible documents
-                let docQuery = {
-                    status: 'published'
-                };
+                const { getCompiledData } = require('../utils/crawlToMongo');
+                const compiledData = await getCompiledData();
 
-                // Operations department has access to ALL documents
-                if (req.user.department !== 'Operations') {
-                    docQuery.$or = [
-                        { accessLevel: 'public' },
-                        { department: req.user.department },
-                        { department: 'All' }
-                    ];
+                // Build document context including VNG-specific information
+                documentContext = '\n\nThông tin từ cơ sở dữ liệu VNG:\n\n';
+                
+                // Add relevant sections based on the query
+                const query = message.toLowerCase();
+                
+                if (query.includes('tài chính') || query.includes('doanh thu') || query.includes('lợi nhuận')) {
+                    documentContext += `=== THÔNG TIN TÀI CHÍNH ===\n${compiledData.financialInfo || ''}\n\n`;
+                }
+                if (query.includes('giải thưởng') || query.includes('thành tựu')) {
+                    documentContext += `=== THÀNH TỰU VÀ GIẢI THƯỞNG ===\n${compiledData.achievements || ''}\n\n`;
+                }
+                if (query.includes('hợp tác') || query.includes('đối tác')) {
+                    documentContext += `=== ĐỐI TÁC VÀ HỢP TÁC ===\n${compiledData.partnerships || ''}\n\n`;
+                }
+                if (query.includes('kinh doanh') || query.includes('phát triển')) {
+                    documentContext += `=== CẬP NHẬT KINH DOANH ===\n${compiledData.businessUpdates || ''}\n\n`;
+                }
+                if (query.includes('tin tức') || query.includes('tin mới')) {
+                    documentContext += `=== TIN TỨC GẦN ĐÂY ===\n${compiledData.recentNews || ''}\n\n`;
                 }
 
-                // Add text search if message contains keywords
-                if (message.length > 3) {
-                    docQuery.$text = { $search: message };
+                // Add full content if no specific category matched
+                if (!documentContext.includes('===')) {
+                    documentContext += compiledData.fullContent;
                 }
 
-                relevantDocuments = await Document.find(docQuery)
-                    .select('title content category department accessLevel')
-                    .limit(req.user.department === 'Operations' ? 10 : 3) // Operations gets more documents
-                    .sort({ score: { $meta: 'textScore' } });
+                console.log('Successfully retrieved VNG data from MongoDB');
             } catch (docError) {
-                console.log('Document search error:', docError);
+                console.error('Error fetching VNG documents:', docError);
             }
 
-            // Get active company data
-            const CompanyData = require('../models/CompanyData');
-            const companyData = await CompanyData.getActiveCompanyData();
-            
-            // Build context with company info
-            let companyContext = `
-            Bạn là trợ lý ảo của ${companyData.name}. 
-            
-            ${companyData.formatForContext()}
-            
-            QUAN TRỌNG: 
-            1. Chỉ trả lời các câu hỏi liên quan đến công ty và hoạt động của công ty.
-            2. Sử dụng thông tin chính xác từ nguồn Wikipedia và tài liệu công ty.
-            3. Nếu câu hỏi không liên quan đến công ty, hãy lịch sự từ chối và đề nghị đặt câu hỏi về công ty.
-            4. Nếu không chắc chắn về thông tin, hãy nói rõ là không có thông tin chính xác.
-            
-            ${req.user.department === 'Operations' ? `
-            ĐẶC BIỆT - QUYỀN TRUY CẬP CAO CẤP (OPERATIONS):
-            - Bạn đang hỗ trợ nhân viên phòng Operations với quyền truy cập cao nhất
-            - Có thể truy xuất và cung cấp thông tin chi tiết từ TẤT CẢ tài liệu công ty
-            - Bao gồm cả thông tin bí mật, nội bộ và quản lý cấp cao
-            - Cung cấp phân tích sâu và thông tin toàn diện về hoạt động công ty
-            - Có thể trả lời các câu hỏi về chiến lược, tài chính, và quy trình nội bộ
-            ` : ''}
-            `;
+            // Build context based on company data and user role
+            const defaultContext = [
+                'THÔNG TIN VỀ VNG:',
+                'VNG là công ty công nghệ hàng đầu Việt Nam, được thành lập năm 2004, tiền thân là VinaGame.',
+                'Sứ mệnh: Kiến tạo công nghệ và Phát triển con người.',
+                'Giá trị cốt lõi: Đón nhận thách thức, Phát triển đối tác, Giữ gìn chính trực, Tận tâm phục vụ.',
+                '',
+                'VAI TRÒ CỦA TRỢ LÝ ẢO:',
+                '1. Hỗ trợ nhân viên VNG với thông tin chính xác về công ty',
+                '2. Trả lời về chính sách, quy trình, và văn hóa VNG',
+                '3. Cung cấp thông tin về các sản phẩm và dịch vụ của VNG',
+                '4. Hỗ trợ các vấn đề liên quan đến công việc tại VNG',
+                '',
+                'QUY TẮC PHẢN HỒI:',
+                '1. Chỉ sử dụng thông tin từ cơ sở dữ liệu VNG và tài liệu nội bộ',
+                '2. Thông tin phải chính xác và cập nhật',
+                '3. Nếu không có thông tin trong database, hãy nói rõ là "Tôi không tìm thấy thông tin này trong cơ sở dữ liệu VNG"',
+                '4. Bảo mật thông tin theo quy định của VNG'
+            ].join('\n');
 
-            // Add relevant documents to context
-            if (relevantDocuments.length > 0) {
-                companyContext += `\n\nTài liệu công ty có liên quan:\n`;
-                relevantDocuments.forEach((doc, index) => {
-                    companyContext += `${index + 1}. ${doc.title} (${doc.category}): ${doc.content.substring(0, 500)}...\n`;
-                });
-                companyContext += `\nHãy sử dụng thông tin từ các tài liệu này để trả lời câu hỏi một cách chính xác.`;
-            }
+            const operationsContext = req.user.department === 'Operations' ? [
+                '',
+                'QUYỀN TRUY CẬP ĐẶC BIỆT (OPERATIONS):',
+                '- Quyền truy cập cao cấp vào hệ thống VNG',
+                '- Có thể xem thông tin chi tiết về hoạt động công ty',
+                '- Truy cập dữ liệu về chiến lược và kế hoạch phát triển',
+                '- Xem thông tin về các dự án và sản phẩm mới',
+                '- Hỗ trợ với các quy trình và chính sách nội bộ'
+            ].join('\n') : '';
+
+            // Build company context using the already fetched companyData
+            const companyContext = [
+                companyData && companyData.name ? 
+                    `Bạn là trợ lý ảo của ${companyData.name}.` :
+                    'Bạn là trợ lý ảo của VNG Corporation.',
+                companyData ? companyData.formatForContext() : '',
+                defaultContext,
+                operationsContext
+            ].filter(Boolean).join('\n\n');
 
             // Check for calendar-related requests
             const calendarKeywords = ['đặt lịch', 'tạo cuộc họp', 'lịch họp', 'meeting', 'schedule', 'calendar', 'lịch', 'họp'];
@@ -206,19 +261,53 @@ router.post('/message', auth, async (req, res) => {
                 message.toLowerCase().includes(keyword)
             );
 
-            // Check if question is company-related
-            const nonCompanyKeywords = ['thời tiết', 'tin tức', 'thể thao', 'giải trí', 'nấu ăn', 'du lịch', 'game'];
-            const isNonCompanyQuestion = nonCompanyKeywords.some(keyword => 
-                message.toLowerCase().includes(keyword)
-            );
-
-            if (isNonCompanyQuestion) {
-                aiResponse = `Xin lỗi, tôi chỉ có thể trả lời các câu hỏi liên quan đến ${companyData.name}. Vui lòng đặt câu hỏi về công ty, chính sách, quy trình làm việc, phúc lợi nhân viên hoặc các vấn đề nội bộ khác.`;
-            } else if (isCalendarRequest && req.user.department === 'Operations') {
+            if (isCalendarRequest && req.user.department === 'Operations') {
                 // Handle calendar requests for Operations users
                 aiResponse = await handleCalendarRequest(message, req.user.id, companyContext);
             } else {
-                const prompt = `${companyContext}\n\nCâu hỏi của nhân viên: ${message}\n\nTrả lời (bằng tiếng Việt, dựa trên thông tin công ty và tài liệu có sẵn):`;
+                // Combine all context and build comprehensive prompt
+                const fullContext = [
+                    companyContext,
+                    documentContext,
+                    '\nLỊCH SỬ CHAT GẦN NHẤT:',
+                    chat.messages.slice(-6).map(msg => 
+                        `${msg.sender === 'user' ? 'Nhân viên' : 'Trợ lý'}: ${msg.content}`
+                    ).join('\n'),
+                    '\nCÂU HỎI HIỆN TẠI:',
+                    message
+                ].join('\n');
+
+                const prompt = `${fullContext}\n\n
+HƯỚNG DẪN TRẢ LỜI CHO TRỢ LÝ ẢO VNG:
+
+1. Phân tích và sử dụng thông tin:
+   - Ưu tiên sử dụng thông tin từ cơ sở dữ liệu VNG được cung cấp ở trên
+   - Phân tích kỹ các tài liệu theo từng danh mục
+   - Kết hợp thông tin từ nhiều nguồn tài liệu nếu có liên quan
+   - Đảm bảo thông tin là mới nhất và chính xác
+
+2. Quy tắc bảo mật:
+   - Chỉ chia sẻ thông tin phù hợp với quyền truy cập của người dùng
+   - Với thông tin nhạy cảm, kiểm tra kỹ department của người dùng
+   - Tuân thủ nghiêm ngặt quy định bảo mật của VNG
+
+3. Phong cách trả lời:
+   - Sử dụng ngôn ngữ tiếng Việt chuyên nghiệp
+   - Thể hiện văn hóa và giá trị cốt lõi của VNG
+   - Trả lời rõ ràng, chi tiết và có cấu trúc
+   - Giọng điệu thân thiện và hỗ trợ
+
+4. Xử lý khi thiếu thông tin:
+   - Nếu không tìm thấy thông tin trong database VNG, trả lời:
+     "Tôi không tìm thấy thông tin này trong cơ sở dữ liệu VNG. Bạn có thể liên hệ bộ phận HR hoặc quản lý trực tiếp để được hỗ trợ chi tiết hơn."
+   - TUYỆT ĐỐI KHÔNG tự thêm thông tin không có trong nguồn dữ liệu
+
+5. Duy trì tính liên tục:
+   - Sử dụng lịch sử chat để đảm bảo các câu trả lời nhất quán
+   - Tham chiếu đến các cuộc trao đổi trước nếu liên quan
+   - Giữ ngữ cảnh của cuộc trò chuyện
+
+Trả lời:`;
                 const result = await model.generateContent(prompt);
                 aiResponse = result.response.text();
                 
@@ -229,16 +318,19 @@ router.post('/message', auth, async (req, res) => {
         } catch (aiError) {
             console.error('AI processing error:', aiError);
             
-            // Kiểm tra nếu lỗi liên quan đến API key hoặc kết nối
+            // Provide more helpful error responses
             if (aiError.message && (
                 aiError.message.includes('API key') || 
                 aiError.message.includes('network') ||
                 aiError.message.includes('connection')
             )) {
-                aiResponse = "Xin lỗi, hiện tại tôi đang gặp vấn đề kết nối. Vui lòng thử lại sau.";
+                aiResponse = "Xin lỗi, tôi đang gặp vấn đề kết nối. Vui lòng đợi một chút và thử lại.";
+            } else if (aiError.message.includes('rate limit')) {
+                aiResponse = "Xin lỗi, hệ thống đang bận. Vui lòng đợi một lát rồi tiếp tục cuộc trò chuyện.";
+            } else if (aiError.message.includes('content filtered')) {
+                aiResponse = "Xin lỗi, tôi không thể trả lời câu hỏi này. Vui lòng hỏi về các thông tin liên quan đến công ty.";
             } else {
-                // Trả lời mặc định cho các lỗi khác
-                aiResponse = "Xin chào! Tôi là trợ lý ảo của công ty. Bạn có thể hỏi tôi về các thông tin liên quan đến công ty hoặc các dịch vụ hỗ trợ.";
+                aiResponse = "Xin lỗi, tôi gặp vấn đề trong việc xử lý câu hỏi của bạn. Hãy thử diễn đạt câu hỏi theo cách khác hoặc hỏi về một chủ đề khác liên quan đến công ty.";
             }
             
             // Log chi tiết lỗi để debug
@@ -270,6 +362,8 @@ router.post('/message', auth, async (req, res) => {
 // Resume chat session
 router.post('/resume/:id', auth, async (req, res) => {
     try {
+        await getDbConnection();
+
         // Mark all chats as inactive
         await Chat.updateMany(
             { user: req.user.id },
@@ -297,6 +391,8 @@ router.post('/resume/:id', auth, async (req, res) => {
 // Delete chat
 router.delete('/:id', auth, async (req, res) => {
     try {
+        await getDbConnection();
+
         const result = await Chat.findOneAndDelete({
             _id: req.params.id,
             user: req.user.id
