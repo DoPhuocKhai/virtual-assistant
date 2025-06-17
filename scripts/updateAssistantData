@@ -1,0 +1,255 @@
+const fs = require('fs').promises;
+const path = require('path');
+
+async function updateAssistantData() {
+    try {
+        console.log('Starting to update assistant data...');
+
+        // Read the crawled website data
+        const websiteDataPath = path.join(__dirname, '..', 'data', 'vng_website_data.json');
+        const websiteData = JSON.parse(await fs.readFile(websiteDataPath, 'utf8'));
+
+        // Process website data into structured format
+        const structuredData = processWebsiteData(websiteData);
+
+        // Read existing company info
+        const companyInfoPath = path.join(__dirname, '..', 'data', 'company_info.json');
+        let companyInfo = {};
+        try {
+            companyInfo = JSON.parse(await fs.readFile(companyInfoPath, 'utf8'));
+        } catch (error) {
+            console.log('No existing company info found, creating new...');
+        }
+
+        // Merge website data with existing company info
+        const mergedData = {
+            ...companyInfo,
+            name: 'VNG Corporation',
+            tradingName: 'VNG',
+            type: 'Technology Company',
+            founded: '2004',
+            headquarters: 'Ho Chi Minh City, Vietnam',
+            keyPeople: extractKeyPeople(websiteData),
+            industry: extractIndustries(websiteData),
+            products: extractProducts(websiteData),
+            website: 'https://vng.com.vn',
+            description: structuredData.description,
+            websiteContent: {
+                main: websiteData.mainContent,
+                about: websiteData.about,
+                products: websiteData.products,
+                news: websiteData.news,
+                careers: websiteData.careers
+            },
+            structured: {
+                ...structuredData,
+                websiteLinks: websiteData.links
+            },
+            lastUpdated: new Date().toISOString()
+        };
+
+        // Save merged data
+        await fs.writeFile(
+            companyInfoPath,
+            JSON.stringify(mergedData, null, 2),
+            'utf8'
+        );
+
+        // Save processed data separately
+        const processedDataPath = path.join(__dirname, '..', 'data', 'processed_website_data.json');
+        await fs.writeFile(
+            processedDataPath,
+            JSON.stringify(structuredData, null, 2),
+            'utf8'
+        );
+
+        console.log('Assistant data updated successfully!');
+        console.log('Data saved to:', companyInfoPath);
+        console.log('Processed data saved to:', processedDataPath);
+
+        return structuredData;
+    } catch (error) {
+        console.error('Error updating assistant data:', error);
+        throw error;
+    }
+}
+
+function processWebsiteData(websiteData) {
+    const structuredData = {
+        description: '',
+        history: [],
+        products: [],
+        news: [],
+        achievements: [],
+        financialInfo: [],
+        careers: [],
+        values: [],
+        milestones: []
+    };
+
+    // Extract main description
+    if (websiteData.mainContent && websiteData.mainContent.content) {
+        structuredData.description = websiteData.mainContent.content.paragraphs
+            .filter(p => p.length > 50)
+            .join('\n\n');
+    }
+
+    // Process about section
+    if (websiteData.about && websiteData.about.content) {
+        // Extract history
+        structuredData.history = websiteData.about.content.paragraphs
+            .filter(p => 
+                p.toLowerCase().includes('history') || 
+                p.toLowerCase().includes('founded') || 
+                p.toLowerCase().includes('established')
+            );
+
+        // Extract values
+        structuredData.values = websiteData.about.content.lists
+            .flat()
+            .filter(item => 
+                item.toLowerCase().includes('value') || 
+                item.toLowerCase().includes('mission') || 
+                item.toLowerCase().includes('vision')
+            );
+
+        // Extract milestones
+        structuredData.milestones = websiteData.about.content.lists
+            .flat()
+            .filter(item => item.match(/\d{4}/));
+    }
+
+    // Process products
+    if (Array.isArray(websiteData.products)) {
+        structuredData.products = websiteData.products.map(product => ({
+            name: product.title,
+            description: product.description,
+            details: product.content.paragraphs.join('\n'),
+            features: product.content.lists.flat()
+        }));
+    }
+
+    // Process news
+    if (Array.isArray(websiteData.news)) {
+        structuredData.news = websiteData.news
+            .filter(news => news.title && news.content)
+            .map(news => ({
+                title: news.title,
+                content: news.content.paragraphs.join('\n'),
+                date: extractDateFromUrl(news.url) || new Date().toISOString(),
+                url: news.url
+            }));
+
+        // Extract financial information
+        structuredData.financialInfo = websiteData.news
+            .filter(news => 
+                news.title && (
+                    news.title.toLowerCase().includes('financial') ||
+                    news.title.toLowerCase().includes('revenue') ||
+                    news.title.toLowerCase().includes('earnings')
+                )
+            )
+            .map(news => ({
+                title: news.title,
+                content: news.content.paragraphs.join('\n'),
+                date: extractDateFromUrl(news.url) || new Date().toISOString()
+            }));
+    }
+
+    // Process careers
+    if (Array.isArray(websiteData.careers)) {
+        structuredData.careers = websiteData.careers.map(career => ({
+            title: career.title,
+            description: career.description,
+            requirements: career.content.lists.flat(),
+            details: career.content.paragraphs.join('\n'),
+            url: career.url
+        }));
+    }
+
+    return structuredData;
+}
+
+function extractKeyPeople(websiteData) {
+    const keyPeople = new Set([
+        'Le Hong Minh',
+        'Vuong Quang Khai'
+    ]);
+
+    // Extract from about section
+    if (websiteData.about && websiteData.about.content) {
+        websiteData.about.content.paragraphs
+            .filter(p => 
+                p.toLowerCase().includes('ceo') || 
+                p.toLowerCase().includes('founder') ||
+                p.toLowerCase().includes('director') ||
+                p.toLowerCase().includes('president')
+            )
+            .forEach(p => {
+                const matches = p.match(/[A-Z][a-z]+ ([A-Z][a-z]+ )?[A-Z][a-z]+/g);
+                if (matches) {
+                    matches.forEach(name => keyPeople.add(name));
+                }
+            });
+    }
+
+    return Array.from(keyPeople);
+}
+
+function extractIndustries(websiteData) {
+    const industries = new Set([
+        'Technology',
+        'Digital Content',
+        'Online Entertainment',
+        'Social Networking',
+        'E-commerce',
+        'Financial Technology'
+    ]);
+
+    // Extract from content
+    if (websiteData.mainContent && websiteData.mainContent.content) {
+        websiteData.mainContent.content.paragraphs
+            .filter(p => p.toLowerCase().includes('industry') || p.toLowerCase().includes('sector'))
+            .forEach(p => {
+                const matches = p.match(/[A-Z][a-zA-Z\s]+ (Industry|Services?)/g);
+                if (matches) {
+                    matches.forEach(industry => industries.add(industry.replace(/(Industry|Services?)/, '').trim()));
+                }
+            });
+    }
+
+    return Array.from(industries);
+}
+
+function extractProducts(websiteData) {
+    const products = new Set([
+        'Zalo',
+        'ZaloPay',
+        'Zing MP3',
+        'ZingNews',
+        '123phim'
+    ]);
+
+    // Extract from products section
+    if (Array.isArray(websiteData.products)) {
+        websiteData.products.forEach(product => {
+            if (product.title) {
+                products.add(product.title.split(' - ')[0].trim());
+            }
+        });
+    }
+
+    return Array.from(products);
+}
+
+function extractDateFromUrl(url = '') {
+    const dateMatch = url.match(/\d{4}[-/]\d{2}[-/]\d{2}/);
+    return dateMatch ? dateMatch[0] : null;
+}
+
+// Execute if run directly
+if (require.main === module) {
+    updateAssistantData().catch(console.error);
+}
+
+module.exports = { updateAssistantData };

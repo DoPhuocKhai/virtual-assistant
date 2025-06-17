@@ -860,6 +860,104 @@ document.addEventListener('DOMContentLoaded', () => {
         const chatMessages = document.getElementById('chatMessages');
         chatMessages.innerHTML = '';
         
+    // Make deleteChat function globally accessible
+    window.deleteChat = async function(chatId) {
+        if (confirm('Bạn có chắc chắn muốn xóa đoạn chat này?')) {
+            try {
+                const response = await fetch(`/api/assistant/chat/${chatId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to delete chat');
+                }
+
+                // If deleting current chat, create new one
+                if (chatId === currentChatId) {
+                    await createNewChat();
+                }
+
+                // Refresh chat history immediately
+                await loadChatHistory();
+
+            } catch (error) {
+                console.error('Error deleting chat:', error);
+                alert('Không thể xóa đoạn chat. Vui lòng thử lại.');
+            }
+        }
+    };
+
+    function displayChatHistory(chats) {
+        const chatHistoryList = document.getElementById('chatHistoryList');
+        
+        if (!chats || chats.length === 0) {
+            chatHistoryList.innerHTML = '<p class="text-sm text-gray-500 p-3">Chưa có lịch sử chat</p>';
+            return;
+        }
+
+        chatHistoryList.innerHTML = chats.map(chat => {
+            const firstMessage = chat.messages[0];
+            const lastMessage = chat.messages[chat.messages.length - 1];
+            
+            const title = chat.title || (firstMessage && firstMessage.sender === 'assistant' ? 
+                (firstMessage.content.length > 50 ? firstMessage.content.substring(0, 50) + '...' : firstMessage.content) : 
+                'Cuộc trò chuyện mới');
+            
+            const lastMessagePreview = lastMessage ? 
+                `<p class="text-xs text-gray-600 dark:text-gray-300 mt-1 truncate">
+                    ${lastMessage.sender === 'user' ? 'Bạn: ' : 'Trợ lý: '}${lastMessage.content}
+                </p>` : '';
+
+            const timestamp = lastMessage ? new Date(lastMessage.timestamp) : new Date(chat.createdAt);
+            const timeString = formatTimestamp(timestamp);
+
+            return `
+                <div class="chat-history-item p-3 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 ${
+                    chat._id === currentChatId ? 'bg-blue-100 dark:bg-blue-900' : ''
+                }" data-chat-id="${chat._id}">
+                    <div class="flex justify-between items-start">
+                        <h4 class="text-sm font-medium text-gray-900 dark:text-white truncate flex-1">
+                            ${title}
+                        </h4>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                                ${timeString}
+                            </span>
+                            <button class="delete-chat-btn p-1 text-red-600 hover:text-red-800 transition-colors" 
+                                    onclick="event.stopPropagation(); deleteChat('${chat._id}');">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    ${lastMessagePreview}
+                    <div class="flex justify-between items-center mt-1">
+                        <span class="text-xs text-gray-400">
+                            ${chat.messages.length} tin nhắn
+                        </span>
+                        ${chat.isActive ? 
+                            '<span class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">Đang hoạt động</span>' 
+                            : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // Add click event listeners to chat history items
+        document.querySelectorAll('.chat-history-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                // Only handle click if not clicking delete button
+                if (!e.target.closest('.delete-chat-btn')) {
+                    const chatId = item.dataset.chatId;
+                    resumeChat(chatId);
+                }
+            });
+        });
+    }
         // Count user messages to update the counter
         messageCount = messages.filter(msg => msg.sender === 'user').length;
         updateMessageCounter();
