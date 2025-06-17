@@ -210,4 +210,33 @@ router.post('/register', async (req, res) => {
     }
 });
 
+// Get current user info - verify token and return user data
+router.get('/me', auth, async (req, res) => {
+    try {
+        // Get full user data from database to ensure it's up to date
+        const user = await User.findById(req.user.id).select('-password');
+        if (!user) {
+            return res.status(404).json({ message: 'Người dùng không tồn tại' });
+        }
+
+        // Update last login time
+        user.lastLogin = new Date();
+        await user.save();
+
+        res.json({
+            id: user._id,
+            email: user.email,
+            name: user.name,
+            department: user.department,
+            position: user.position,
+            role: user.role,
+            lastLogin: user.lastLogin,
+            createdAt: user.createdAt
+        });
+    } catch (error) {
+        console.error('Error fetching current user:', error);
+        res.status(500).json({ message: 'Lỗi server khi xác thực người dùng' });
+    }
+});
+
 module.exports = router;

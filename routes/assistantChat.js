@@ -71,7 +71,7 @@ Vui lòng chọn thời gian khác.`;
 
 // Initialize Google Generative AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 // Get chat history
 router.get('/history', auth, async (req, res) => {
@@ -228,7 +228,25 @@ router.post('/message', auth, async (req, res) => {
             }
         } catch (aiError) {
             console.error('AI processing error:', aiError);
-            aiResponse = "Xin lỗi, tôi không thể xử lý yêu cầu của bạn lúc này. Vui lòng thử lại sau.";
+            
+            // Kiểm tra nếu lỗi liên quan đến API key hoặc kết nối
+            if (aiError.message && (
+                aiError.message.includes('API key') || 
+                aiError.message.includes('network') ||
+                aiError.message.includes('connection')
+            )) {
+                aiResponse = "Xin lỗi, hiện tại tôi đang gặp vấn đề kết nối. Vui lòng thử lại sau.";
+            } else {
+                // Trả lời mặc định cho các lỗi khác
+                aiResponse = "Xin chào! Tôi là trợ lý ảo của công ty. Bạn có thể hỏi tôi về các thông tin liên quan đến công ty hoặc các dịch vụ hỗ trợ.";
+            }
+            
+            // Log chi tiết lỗi để debug
+            console.log('Detailed AI Error:', {
+                name: aiError.name,
+                message: aiError.message,
+                stack: aiError.stack
+            });
         }
         
         // Add assistant response

@@ -1,9 +1,118 @@
- document.addEventListener('DOMContentLoaded', () => {
-    // Check if user is already logged in
+document.addEventListener('DOMContentLoaded', () => {
+    // Show loading indicator while checking authentication
+    const loader = document.createElement('div');
+    loader.id = 'authLoader';
+    loader.className = 'fixed inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-900 z-50';
+    loader.innerHTML = `
+        <div class="text-center">
+            <div class="flex justify-center space-x-2 mb-4">
+                <div class="w-3 h-3 bg-blue-600 rounded-full animate-bounce"></div>
+                <div class="w-3 h-3 bg-blue-600 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                <div class="w-3 h-3 bg-blue-600 rounded-full animate-bounce" style="animation-delay: 0.4s"></div>
+            </div>
+            <p class="text-xl text-gray-700 dark:text-gray-300">Đang xác thực...</p>
+        </div>
+    `;
+    document.body.appendChild(loader);
+
+    // Session check function
+    async function checkSession() {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            loader.remove();
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/auth/me', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                localStorage.setItem('userData', JSON.stringify(data));
+                showMainApp();
+                return;
+            }
+
+            const errorData = await response.json();
+            console.error('Session check failed:', errorData);
+
+            // Handle specific error codes
+            if (errorData.code === 'TOKEN_EXPIRED') {
+                // Try to refresh session once
+                if (!sessionStorage.getItem('refreshAttempted')) {
+                    sessionStorage.setItem('refreshAttempted', 'true');
+                    window.location.reload();
+                    return;
+                }
+            }
+
+            // Clear session data if refresh failed or other error
+            localStorage.removeItem('token');
+            localStorage.removeItem('userData');
+            sessionStorage.removeItem('refreshAttempted');
+            window.location.href = '/';
+
+        } catch (error) {
+            console.error('Session check error:', error);
+            localStorage.removeItem('token');
+            localStorage.removeItem('userData');
+            sessionStorage.removeItem('refreshAttempted');
+            window.location.href = '/';
+        } finally {
+            loader.remove();
+        }
+    }
+
+    // Check session on load
     const token = localStorage.getItem('token');
     if (token) {
-        showMainApp();
-        return;
+        checkSession().catch(error => {
+            console.error('Session check failed:', error);
+            localStorage.removeItem('token');
+            localStorage.removeItem('userData');
+            sessionStorage.removeItem('refreshAttempted');
+            window.location.href = '/';
+            loader.remove();
+        });
+    } else {
+        loader.remove();
+    }
+
+    // If no token exists, remove loader and show login form
+    loader.remove();
+
+    // Helper function to handle authentication errors
+    function handleAuthError(response) {
+        if (response.status === 401) {
+            // Try to refresh session once
+            if (!sessionStorage.getItem('refreshAttempted')) {
+                sessionStorage.setItem('refreshAttempted', 'true');
+                window.location.reload();
+                return true;
+            }
+            
+            // If already attempted refresh, logout
+            localStorage.removeItem('token');
+            localStorage.removeItem('userData');
+            sessionStorage.removeItem('refreshAttempted');
+            
+            // Show error message
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'fixed top-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded z-50';
+            errorDiv.innerHTML = 'Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.';
+            document.body.appendChild(errorDiv);
+            
+            setTimeout(() => {
+                errorDiv.remove();
+                window.location.reload();
+            }, 2000);
+            return true;
+        }
+        return false;
     }
 
     // Form elements
@@ -40,18 +149,40 @@
     // Function to load user info
     async function loadUserInfo() {
         try {
-            const response = await fetch('/api/company/info', {
+            // First try to use stored user data
+            const userData = localStorage.getItem('userData');
+            if (userData) {
+                const user = JSON.parse(userData);
+                document.getElementById('userInfo').textContent = `Chào mừng, ${user.name} (${user.department})`;
+                return;
+            }
+
+            // Fallback to API call if no stored data
+            const response = await fetch('/api/auth/me', {
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 }
             });
             
             if (response.ok) {
-                const data = await response.json();
-                document.getElementById('userInfo').textContent = `Chào mừng đến với ${data.name}`;
+                const user = await response.json();
+                localStorage.setItem('userData', JSON.stringify(user));
+                document.getElementById('userInfo').textContent = `Chào mừng, ${user.name} (${user.department})`;
+            } else if (response.status === 401) {
+                // Token expired or invalid
+                localStorage.removeItem('token');
+                localStorage.removeItem('userData');
+                window.location.reload();
             }
         } catch (error) {
             console.error('Error loading user info:', error);
+            // If error occurs, try to reload authentication
+            const token = localStorage.getItem('token');
+            if (token) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('userData');
+                window.location.reload();
+            }
         }
     }
 
@@ -86,6 +217,7 @@
         // Logout functionality
         document.getElementById('logout').addEventListener('click', () => {
             localStorage.removeItem('token');
+            localStorage.removeItem('userData');
             window.location.reload();
         });
 
@@ -112,8 +244,17 @@
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 }
             })
-            .then(response => response.json())
+            .then(response => {
+                if (response.status === 401) {
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('userData');
+                    window.location.reload();
+                    return;
+                }
+                return response.json();
+            })
             .then(data => {
+                if (!data) return;
                 if (data.department !== 'IT') {
                     accessDeniedMessage.classList.remove('hidden');
                     document.getElementById('usersTableContainer').classList.add('hidden');
