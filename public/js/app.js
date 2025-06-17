@@ -581,80 +581,98 @@ document.addEventListener('DOMContentLoaded', () => {
             chatMessages.appendChild(loadingDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
 
-            // Send message to server with retry logic
-            const sendWithRetry = async (retries = 3) => {
-                for (let i = 0; i < retries; i++) {
-                    try {
-                        const response = await fetch('/api/assistant/chat', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${localStorage.getItem('token')}`
-                            },
-                            body: JSON.stringify({ 
-                                message,
-                                chatId: currentChatId 
-                            })
-                        });
+            // Send message with improved error handling and retry logic
+            async function handleMessage() {
+                const sendWithRetry = async (retries = 3, delay = 1000) => {
+                    let lastError;
+                    
+                    for (let i = 0; i < retries; i++) {
+                        try {
+                            const response = await fetch('/api/assistant/chat', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                                },
+                                body: JSON.stringify({ 
+                                    message,
+                                    chatId: currentChatId 
+                                })
+                            });
 
-                        if (!response.ok) {
-                            const errorData = await response.json();
-                            throw new Error(errorData.message || 'Server error');
-                        }
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                if (response.status === 401) {
+                                    handleAuthError(response);
+                                    return null;
+                                }
+                                throw new Error(errorData.message || 'Server error');
+                            }
 
-                        return await response.json();
-                    } catch (error) {
-                        console.error(`Attempt ${i + 1} failed:`, error);
-                        if (i === retries - 1) {
-                            throw error;
+                            const data = await response.json();
+                            if (!data || (!data.response && !data.chat)) {
+                                throw new Error('Invalid response format');
+                            }
+                            return data;
+
+                        } catch (error) {
+                            console.error(`Attempt ${i + 1} failed:`, error);
+                            lastError = error;
+                            
+                            if (i < retries - 1) {
+                                await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
+                                continue;
+                            }
                         }
-                        await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
                     }
-                }
-            };
+                    throw lastError;
+                };
 
-            sendWithRetry()
-            .then(data => {
-                if (data.response) {
-                    addMessageToChat('assistant', data.response);
-                }
-                if (data.chat) {
-                    currentChatId = data.chat._id;
-                    // Update message count based on actual messages
-                    messageCount = data.chat.messages.filter(msg => msg.sender === 'user').length;
-                    updateMessageCounter();
-                }
-                loadChatHistory(); // Refresh chat history
-            })
-            .catch(error => {
-                console.error('Chat error:', error);
-                // Remove loading indicator
-                loadingDiv.remove();
-                // Show error message
-                addMessageToChat('assistant', 'Có lỗi xảy ra khi kết nối với trợ lý. Vui lòng thử lại sau.', new Date());
-            })
-            .finally(() => {
-                // Remove loading indicator
-                loadingDiv.remove();
-                
-                // Re-enable send button
-                if (sendButton) {
-                    sendButton.disabled = false;
-                    sendButton.textContent = 'Gửi';
-                }
-                
-                // Disable input and button if limit reached
-                if (messageCount >= MESSAGE_LIMIT) {
-                    messageInput.disabled = true;
+                try {
+                    const data = await sendWithRetry();
+                    if (!data) return; // Auth error was handled
+
+                    // Update UI with response
+                    if (data.response) {
+                        addMessageToChat('assistant', data.response);
+                    }
+                    
+                    // Update chat state
+                    if (data.chat) {
+                        currentChatId = data.chat._id;
+                        messageCount = data.chat.messages.filter(msg => msg.sender === 'user').length;
+                        updateMessageCounter();
+                        await loadChatHistory(); // Refresh chat list
+                    }
+                } catch (error) {
+                    console.error('Chat error:', error);
+                    addMessageToChat('assistant', 'Có lỗi xảy ra khi kết nối với trợ lý. Vui lòng thử lại sau.', new Date());
+                } finally {
+                    // Remove loading indicator
+                    loadingDiv.remove();
+                    
+                    // Re-enable send button
                     if (sendButton) {
-                        sendButton.disabled = true;
+                        sendButton.disabled = false;
+                        sendButton.textContent = 'Gửi';
                     }
-                    messageInput.placeholder = 'Đã đạt giới hạn tin nhắn. Tạo cuộc trò chuyện mới để tiếp tục.';
-                }
+                    
+                    // Disable input and button if limit reached
+                    if (messageCount >= MESSAGE_LIMIT) {
+                        messageInput.disabled = true;
+                        if (sendButton) {
+                            sendButton.disabled = true;
+                        }
+                        messageInput.placeholder = 'Đã đạt giới hạn tin nhắn. Tạo cuộc trò chuyện mới để tiếp tục.';
+                    }
 
-                // Scroll to bottom
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-            });
+                    // Scroll to bottom
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
+            }
+
+            // Execute the message handling
+            handleMessage();
         }
         
         // Form submit event
