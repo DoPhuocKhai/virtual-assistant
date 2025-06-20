@@ -1,4 +1,4 @@
-# Trợ Lý Ảo Doanh Nghiệp - Công ty Khải Đỗ
+# Trợ Lý Ảo Doanh Nghiệp - Công ty VNG
 
 Hệ thống trợ lý ảo thông minh được xây dựng riêng cho Công ty Khải Đỗ, giúp quản lý tài liệu, công việc và cuộc họp với tính năng phân quyền và bảo mật cao.
 
@@ -6,7 +6,7 @@ Hệ thống trợ lý ảo thông minh được xây dựng riêng cho Công ty
 
 - 🔐 Hệ thống xác thực và phân quyền người dùng
 - 📄 Quản lý tài liệu công ty với các mức độ truy cập
-- 🤖 Trợ lý ảo thông minh tích hợp AI (OpenAI GPT-4)
+- 🤖 Trợ lý ảo thông minh tích hợp AI (Gemini 2.5 flash)
 - 📅 Quản lý lịch họp và cuộc họp
 - ✅ Quản lý công việc và nhiệm vụ
 - 🔍 Tìm kiếm thông minh trong tài liệu công ty
