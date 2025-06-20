@@ -116,8 +116,8 @@ db.users.aggregate([
 
 // Ví dụ sử dụng trong Node.js với Mongoose:
 
-/*
-// 1. Tìm tài liệu
+
+//1. Tìm tài liệu
 const docs = await CompanyDocument.find({
     department: "IT",
     accessLevel: { $in: ["public", "department"] }
@@ -151,4 +151,4 @@ await Task.findByIdAndUpdate(taskId, {
         progress: 100
     }
 });
-*/
+

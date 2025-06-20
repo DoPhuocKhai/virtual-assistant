@@ -19,7 +19,9 @@ const vngNewsUrls = [
     'https://nhandan.vn/zalo-cua-bo-y-te-gui-hon-35-ty-thong-bao-ve-covid-19-den-nguoi-dan-post607756.html',
     'https://www.qdnd.vn/xa-hoi/tin-tuc/zalo-nhan-giay-khen-tu-giam-doc-cong-an-tp-ho-chi-minh-725289',
     'https://nguoidothi.net.vn/zalo-duoc-trao-bang-khen-vi-dong-gop-xuat-sac-trong-ho-tro-hoat-dong-chuyen-doi-so-46447.html',
-    'https://vnggames.com/vn/vi'
+    'https://vnggames.com/vn/vi',
+    'https://vnggames.com/vn/vi/news',
+    'https://maisonoffice.vn/tin-tuc/tru-so-vng/#:~:text=Tr%E1%BB%A5%20s%E1%BB%9F%20ch%C3%ADnh%20VNG%20%C4%91%C6%B0%E1%BB%A3c,Th%C3%A0nh%20ph%E1%BB%91%20H%E1%BB%93%20Ch%C3%AD%20Minh.&text=VNG%20Campus%20l%C3%A0%20m%E1%BB%99t%20khu,%2C%20gi%E1%BA%A3i%20tr%C3%AD%2C%20th%E1%BB%83%20thao.'
 ];
 
 async function crawlAndUpdateVNGData() {
