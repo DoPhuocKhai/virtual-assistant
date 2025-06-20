@@ -71,7 +71,8 @@ const vngNewsUrls = [
     'https://www.reuters.com/technology/vietnams-vng-files-us-ipo-2023-08-24/',
     'https://www.nasdaq.com/market-activity/stocks/vng',
     'https://www.crunchbase.com/organization/vng-corporation',
-    'https://www.linkedin.com/company/vng-corporation/'
+    'https://www.linkedin.com/company/vng-corporation/',
+    'https://vnggames.com/vn/vi/privacy-policy-vn'
 ];
 
 async function crawlAndUpdateVNGData() {
