@@ -23,7 +23,7 @@ const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 // Local MongoDB connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/virtual-assistant';
-
+'mongodb+srv://virtual-assistant:Asd123zxc@cluster0.0nq4nro.mongodb.net/'
 mongoose.connect(MONGODB_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
