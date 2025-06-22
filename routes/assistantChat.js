@@ -71,7 +71,7 @@ Vui lòng chọn thời gian khác.`;
 
 // Initialize Google Generative AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 // Get chat history
 router.get('/history', auth, async (req, res) => {
